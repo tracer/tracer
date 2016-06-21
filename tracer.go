@@ -9,6 +9,7 @@ import (
 	"github.com/opentracing/opentracing-go"
 )
 
+// Span is an implementation of the Open Tracing Span interface.
 type Span struct {
 	tracer *Tracer
 
@@ -63,11 +64,13 @@ func (sp *Span) Log(data opentracing.LogData) {
 
 func (sp *Span) SetBaggageItem(key, value string) opentracing.Span {
 	// TODO implement
+	panic("not implemented")
 	return sp
 
 }
 func (sp *Span) BaggageItem(key string) string {
 	// TODO implement
+	panic("not implemented")
 	return ""
 }
 
@@ -75,6 +78,7 @@ func (sp *Span) Tracer() opentracing.Tracer {
 	return sp.tracer
 }
 
+// Tracer is an implementation of the Open Tracing Tracer interface.
 type Tracer struct {
 	storer      Storer
 	idGenerator IDGenerator
@@ -172,15 +176,33 @@ func (tr *Tracer) Join(operationName string, format interface{}, carrier interfa
 	return nil, nil
 }
 
+// IDGenerator generates IDs for traces and spans. The ID with value 0
+// is reserved to mean "no parent span" and should not be generated.
 type IDGenerator interface {
 	GenerateID() uint64
 }
 
+// Storer maps Open Tracing operations to a backend. The backend can
+// be actual storage in a database, or a transport to a remote server,
+// or coalescion of spans, and so on.
+//
+// It is up to the implementation whether it acts on operations right
+// away or if it caches them. For example, an implementation could
+// wait for a call to FinishWithOptions before storing a span, at the
+// risk of losing spans in case of crashes.
 type Storer interface {
+	// AddSpan creates a new span.
 	AddSpan(sp *Span)
+	// SetOperationName sets the operation name of the span.
 	SetOperationName(sp *Span, name string)
+	// SetTag sets the tag key to value. Duplicate keys overwrite each
+	// other. Any value that can marshal to JSON is allowed.
 	SetTag(sp *Span, key string, value interface{})
+	// FinishWithOptions marks the span sp as done. FinishTime will
+	// already be populated.
 	FinishWithOptions(sp *Span, opts opentracing.FinishOptions)
+	// Log logs an event. Timestamp will already be populated. The
+	// payload must be a value that can marshal to JSON.
 	Log(sp *Span, data opentracing.LogData)
 }
 
@@ -191,6 +213,7 @@ type Queryer interface {
 // RandomID generates random IDs by using crypto/rand.
 type RandomID struct{}
 
+// GenerateID generates an ID.
 func (RandomID) GenerateID() uint64 {
 	b := make([]byte, 8)
 	for {
