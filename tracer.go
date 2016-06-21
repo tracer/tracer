@@ -1,3 +1,5 @@
+// Package tracer implements a Dapper-style tracing system. It is
+// compatible with the Open Tracing specification.
 package tracer
 
 import (
