@@ -12,6 +12,73 @@ import (
 	"github.com/opentracing/opentracing-go"
 )
 
+type Joiner func(operationName string, carrier interface{}) (traceID, parentID, spanID uint64, err error)
+type Injecter func(sp *Span, carrier interface{}) error
+
+var joiners = map[interface{}]Joiner{
+	opentracing.TextMap: textJoiner,
+	opentracing.Binary:  binaryJoiner,
+}
+
+var injecters = map[interface{}]Injecter{
+	opentracing.TextMap: textInjecter,
+	opentracing.Binary:  binaryInjecter,
+}
+
+func RegisterJoiner(format interface{}, joiner Joiner) {
+	joiners[format] = joiner
+}
+
+func RegisterInjecter(format interface{}, injecter Injecter) {
+	injecters[format] = injecter
+}
+
+func textInjecter(sp *Span, carrier interface{}) error {
+	w := carrier.(opentracing.TextMapWriter)
+	w.Set("X-B3-TraceId", idToHex(sp.TraceID))
+	w.Set("X-B3-SpanId", idToHex(sp.SpanID))
+	w.Set("X-B3-ParentSpanId", idToHex(sp.ParentID))
+	return nil
+}
+
+func textJoiner(operationName string, carrier interface{}) (traceID, parentID, spanID uint64, err error) {
+	r := carrier.(opentracing.TextMapReader)
+	err = r.ForeachKey(func(key string, val string) error {
+		switch key {
+		case "X-B3-TraceId":
+			traceID = idFromHex(val)
+		case "X-B3-SpanId":
+			spanID = idFromHex(val)
+		case "X-B3-ParentSpanId":
+			parentID = idFromHex(val)
+		}
+		return nil
+	})
+	return traceID, parentID, spanID, err
+}
+
+func binaryInjecter(sp *Span, carrier interface{}) error {
+	w := carrier.(io.Writer)
+	b := make([]byte, 24)
+	binary.BigEndian.PutUint64(b, sp.TraceID)
+	binary.BigEndian.PutUint64(b[8:], sp.TraceID)
+	binary.BigEndian.PutUint64(b[16:], sp.TraceID)
+	_, err := w.Write(b)
+	return err
+}
+
+func binaryJoiner(operationName string, carrier interface{}) (traceID, parentID, spanID uint64, err error) {
+	r := carrier.(io.Reader)
+	b := make([]byte, 24)
+	if _, err := io.ReadFull(r, b); err != nil {
+		return 0, 0, 0, err
+	}
+	traceID = binary.BigEndian.Uint64(b)
+	spanID = binary.BigEndian.Uint64(b[8:])
+	parentID = binary.BigEndian.Uint64(b[16:])
+	return traceID, parentID, spanID, err
+}
+
 // Span is an implementation of the Open Tracing Span interface.
 type Span struct {
 	tracer *Tracer
@@ -141,57 +208,28 @@ func idFromHex(s string) uint64 {
 func (tr *Tracer) Inject(sp opentracing.Span, format interface{}, carrier interface{}) error {
 	// TODO(dh): support sampling
 	span := sp.(*Span)
-	switch format {
-	case opentracing.TextMap:
-		w := carrier.(opentracing.TextMapWriter)
-		w.Set("X-B3-TraceId", idToHex(span.TraceID))
-		w.Set("X-B3-SpanId", idToHex(span.SpanID))
-		w.Set("X-B3-ParentSpanId", idToHex(span.ParentID))
-	case opentracing.Binary:
-		w := carrier.(io.Writer)
-		b := make([]byte, 24)
-		binary.BigEndian.PutUint64(b, span.TraceID)
-		binary.BigEndian.PutUint64(b[8:], span.TraceID)
-		binary.BigEndian.PutUint64(b[16:], span.TraceID)
-		_, err := w.Write(b)
-		return err
-	default:
+	injecter, ok := injecters[format]
+	if !ok {
 		return opentracing.ErrUnsupportedFormat
 	}
-	return nil
+	return injecter(span, carrier)
 }
 
 func (tr *Tracer) Join(operationName string, format interface{}, carrier interface{}) (opentracing.Span, error) {
 	// TODO(dh): support sampling
 	sp := &Span{tracer: tr}
-	switch format {
-	case opentracing.TextMap:
-		r := carrier.(opentracing.TextMapReader)
-		err := r.ForeachKey(func(key string, val string) error {
-			switch key {
-			case "X-B3-TraceId":
-				sp.TraceID = idFromHex(val)
-			case "X-B3-SpanId":
-				sp.SpanID = idFromHex(val)
-			case "X-B3-ParentSpanId":
-				sp.ParentID = idFromHex(val)
-			}
-			return nil
-		})
-		return sp, err
-	case opentracing.Binary:
-		r := carrier.(io.Reader)
-		b := make([]byte, 24)
-		if _, err := io.ReadFull(r, b); err != nil {
-			return nil, err
-		}
-		sp.TraceID = binary.BigEndian.Uint64(b)
-		sp.SpanID = binary.BigEndian.Uint64(b[8:])
-		sp.ParentID = binary.BigEndian.Uint64(b[16:])
-	default:
+	joiner, ok := joiners[format]
+	if !ok {
 		return nil, opentracing.ErrUnsupportedFormat
 	}
-	return nil, nil
+	traceID, parentID, spanID, err := joiner(operationName, carrier)
+	if err != nil {
+		return nil, opentracing.ErrUnsupportedFormat
+	}
+	sp.TraceID = traceID
+	sp.ParentID = parentID
+	sp.SpanID = spanID
+	return sp, nil
 }
 
 // IDGenerator generates IDs for traces and spans. The ID with value 0
