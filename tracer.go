@@ -6,6 +6,7 @@ import (
 	"crypto/rand"
 	"encoding/binary"
 	"encoding/hex"
+	"io"
 	"time"
 
 	"github.com/opentracing/opentracing-go"
@@ -146,7 +147,13 @@ func (tr *Tracer) Inject(sp opentracing.Span, format interface{}, carrier interf
 		w.Set("X-B3-ParentSpanId", idToHex(sp.(*Span).ParentID))
 		// TODO(dh): support sampling
 	case opentracing.Binary:
-		// TODO implement
+		w := carrier.(io.Writer)
+		b := make([]byte, 24)
+		binary.BigEndian.PutUint64(b, sp.(*Span).TraceID)
+		binary.BigEndian.PutUint64(b[8:], sp.(*Span).TraceID)
+		binary.BigEndian.PutUint64(b[16:], sp.(*Span).TraceID)
+		_, err := w.Write(b)
+		return err
 	default:
 		return opentracing.ErrUnsupportedFormat
 	}
@@ -171,7 +178,15 @@ func (tr *Tracer) Join(operationName string, format interface{}, carrier interfa
 		})
 		return sp, err
 	case opentracing.Binary:
-		// TODO implement
+		r := carrier.(io.Reader)
+		sp := &Span{tracer: tr}
+		b := make([]byte, 24)
+		if _, err := io.ReadFull(r, b); err != nil {
+			return nil, err
+		}
+		sp.TraceID = binary.BigEndian.Uint64(b)
+		sp.SpanID = binary.BigEndian.Uint64(b[8:])
+		sp.ParentID = binary.BigEndian.Uint64(b[16:])
 	default:
 		return nil, opentracing.ErrUnsupportedFormat
 	}
