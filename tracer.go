@@ -54,6 +54,9 @@ func textJoiner(carrier interface{}) (traceID, parentID, spanID uint64, err erro
 		}
 		return nil
 	})
+	if traceID == 0 {
+		return 0, 0, 0, opentracing.ErrTraceNotFound
+	}
 	return traceID, parentID, spanID, err
 }
 
@@ -71,6 +74,9 @@ func binaryJoiner(carrier interface{}) (traceID, parentID, spanID uint64, err er
 	r := carrier.(io.Reader)
 	b := make([]byte, 24)
 	if _, err := io.ReadFull(r, b); err != nil {
+		if err == io.ErrUnexpectedEOF {
+			return 0, 0, 0, opentracing.ErrTraceNotFound
+		}
 		return 0, 0, 0, err
 	}
 	traceID = binary.BigEndian.Uint64(b)
