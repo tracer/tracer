@@ -3,6 +3,7 @@ package tracer
 import (
 	"crypto/rand"
 	"encoding/binary"
+	"fmt"
 	"time"
 
 	"github.com/opentracing/opentracing-go"
@@ -121,12 +122,53 @@ func (tr *Tracer) StartSpanWithOptions(opts opentracing.StartSpanOptions) opentr
 }
 
 func (tr *Tracer) Inject(sp opentracing.Span, format interface{}, carrier interface{}) error {
-	// TODO implement
+	switch format {
+	case opentracing.TextMap:
+		w := carrier.(opentracing.TextMapWriter)
+		w.Set("X-B3-TraceId", fmt.Sprintf("%016x", sp.(*Span).TraceID))
+		w.Set("X-B3-SpanId", fmt.Sprintf("%016x", sp.(*Span).SpanID))
+		w.Set("X-B3-ParentSpanId", fmt.Sprintf("%016x", sp.(*Span).ParentID))
+		// TODO(dh): support sampling
+	case opentracing.Binary:
+		// TODO implement
+	default:
+		return opentracing.ErrUnsupportedFormat
+	}
 	return nil
 }
 
 func (tr *Tracer) Join(operationName string, format interface{}, carrier interface{}) (opentracing.Span, error) {
-	// TODO implement
+	switch format {
+	case opentracing.TextMap:
+		w := carrier.(opentracing.TextMapReader)
+		sp := &Span{tracer: tr}
+		err := w.ForeachKey(func(key string, val string) error {
+			var id uint64
+			switch key {
+			case "X-B3-TraceId":
+				if _, err := fmt.Sscanf(val, "%016x", &id); err != nil {
+					return err
+				}
+				sp.TraceID = id
+			case "X-B3-SpanId":
+				if _, err := fmt.Sscanf(val, "%016x", &id); err != nil {
+					return err
+				}
+				sp.SpanID = id
+			case "X-B3-ParentSpanId":
+				if _, err := fmt.Sscanf(val, "%016x", &id); err != nil {
+					return err
+				}
+				sp.ParentID = id
+			}
+			return nil
+		})
+		return sp, err
+	case opentracing.Binary:
+		// TODO implement
+	default:
+		return nil, opentracing.ErrUnsupportedFormat
+	}
 	return nil, nil
 }
 
