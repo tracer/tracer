@@ -34,7 +34,10 @@ func RegisterInjecter(format interface{}, injecter Injecter) {
 }
 
 func textInjecter(sp *Span, carrier interface{}) error {
-	w := carrier.(opentracing.TextMapWriter)
+	w, ok := carrier.(opentracing.TextMapWriter)
+	if !ok {
+		return opentracing.ErrInvalidCarrier
+	}
 	w.Set("X-B3-TraceId", idToHex(sp.TraceID))
 	w.Set("X-B3-SpanId", idToHex(sp.SpanID))
 	w.Set("X-B3-ParentSpanId", idToHex(sp.ParentID))
@@ -42,7 +45,10 @@ func textInjecter(sp *Span, carrier interface{}) error {
 }
 
 func textJoiner(carrier interface{}) (traceID, parentID, spanID uint64, err error) {
-	r := carrier.(opentracing.TextMapReader)
+	r, ok := carrier.(opentracing.TextMapReader)
+	if !ok {
+		return 0, 0, 0, opentracing.ErrInvalidCarrier
+	}
 	err = r.ForeachKey(func(key string, val string) error {
 		switch key {
 		case "X-B3-TraceId":
@@ -61,7 +67,10 @@ func textJoiner(carrier interface{}) (traceID, parentID, spanID uint64, err erro
 }
 
 func binaryInjecter(sp *Span, carrier interface{}) error {
-	w := carrier.(io.Writer)
+	w, ok := carrier.(io.Writer)
+	if !ok {
+		return opentracing.ErrInvalidCarrier
+	}
 	b := make([]byte, 24)
 	binary.BigEndian.PutUint64(b, sp.TraceID)
 	binary.BigEndian.PutUint64(b[8:], sp.TraceID)
@@ -71,7 +80,10 @@ func binaryInjecter(sp *Span, carrier interface{}) error {
 }
 
 func binaryJoiner(carrier interface{}) (traceID, parentID, spanID uint64, err error) {
-	r := carrier.(io.Reader)
+	r, ok := carrier.(io.Reader)
+	if !ok {
+		return 0, 0, 0, opentracing.ErrInvalidCarrier
+	}
 	b := make([]byte, 24)
 	if _, err := io.ReadFull(r, b); err != nil {
 		if err == io.ErrUnexpectedEOF {
@@ -213,7 +225,10 @@ func idFromHex(s string) uint64 {
 
 func (tr *Tracer) Inject(sp opentracing.Span, format interface{}, carrier interface{}) error {
 	// TODO(dh): support sampling
-	span := sp.(*Span)
+	span, ok := sp.(*Span)
+	if !ok {
+		return opentracing.ErrInvalidSpan
+	}
 	injecter, ok := injecters[format]
 	if !ok {
 		return opentracing.ErrUnsupportedFormat
