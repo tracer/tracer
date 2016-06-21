@@ -139,19 +139,20 @@ func idFromHex(s string) uint64 {
 }
 
 func (tr *Tracer) Inject(sp opentracing.Span, format interface{}, carrier interface{}) error {
+	// TODO(dh): support sampling
+	span := sp.(*Span)
 	switch format {
 	case opentracing.TextMap:
 		w := carrier.(opentracing.TextMapWriter)
-		w.Set("X-B3-TraceId", idToHex(sp.(*Span).TraceID))
-		w.Set("X-B3-SpanId", idToHex(sp.(*Span).SpanID))
-		w.Set("X-B3-ParentSpanId", idToHex(sp.(*Span).ParentID))
-		// TODO(dh): support sampling
+		w.Set("X-B3-TraceId", idToHex(span.TraceID))
+		w.Set("X-B3-SpanId", idToHex(span.SpanID))
+		w.Set("X-B3-ParentSpanId", idToHex(span.ParentID))
 	case opentracing.Binary:
 		w := carrier.(io.Writer)
 		b := make([]byte, 24)
-		binary.BigEndian.PutUint64(b, sp.(*Span).TraceID)
-		binary.BigEndian.PutUint64(b[8:], sp.(*Span).TraceID)
-		binary.BigEndian.PutUint64(b[16:], sp.(*Span).TraceID)
+		binary.BigEndian.PutUint64(b, span.TraceID)
+		binary.BigEndian.PutUint64(b[8:], span.TraceID)
+		binary.BigEndian.PutUint64(b[16:], span.TraceID)
 		_, err := w.Write(b)
 		return err
 	default:
@@ -161,11 +162,12 @@ func (tr *Tracer) Inject(sp opentracing.Span, format interface{}, carrier interf
 }
 
 func (tr *Tracer) Join(operationName string, format interface{}, carrier interface{}) (opentracing.Span, error) {
+	// TODO(dh): support sampling
+	sp := &Span{tracer: tr}
 	switch format {
 	case opentracing.TextMap:
-		w := carrier.(opentracing.TextMapReader)
-		sp := &Span{tracer: tr}
-		err := w.ForeachKey(func(key string, val string) error {
+		r := carrier.(opentracing.TextMapReader)
+		err := r.ForeachKey(func(key string, val string) error {
 			switch key {
 			case "X-B3-TraceId":
 				sp.TraceID = idFromHex(val)
@@ -179,7 +181,6 @@ func (tr *Tracer) Join(operationName string, format interface{}, carrier interfa
 		return sp, err
 	case opentracing.Binary:
 		r := carrier.(io.Reader)
-		sp := &Span{tracer: tr}
 		b := make([]byte, 24)
 		if _, err := io.ReadFull(r, b); err != nil {
 			return nil, err
