@@ -17,7 +17,6 @@ type Span struct {
 	TraceID       uint64
 	OperationName string
 	StartTime     time.Time
-	Tags          opentracing.Tags
 }
 
 func (sp *Span) SetOperationName(name string) opentracing.Span {
