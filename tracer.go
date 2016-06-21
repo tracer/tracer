@@ -193,6 +193,11 @@ type RandomID struct{}
 
 func (RandomID) GenerateID() uint64 {
 	b := make([]byte, 8)
-	_, _ = rand.Read(b)
-	return binary.BigEndian.Uint64(b)
+	for {
+		_, _ = rand.Read(b)
+		x := binary.BigEndian.Uint64(b)
+		if x != 0 {
+			return x
+		}
+	}
 }
