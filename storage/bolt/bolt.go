@@ -68,10 +68,7 @@ func (st *Storage) AddSpan(sp *tracer.Span) {
 		}
 
 		indexes := tx.Bucket([]byte("indexes"))
-		if err := indexes.Put([]byte(fmt.Sprintf("%016x", sp.SpanID)), []byte(id)); err != nil {
-			return err
-		}
-		return nil
+		return indexes.Put([]byte(fmt.Sprintf("%016x", sp.SpanID)), []byte(id))
 	})
 }
 
