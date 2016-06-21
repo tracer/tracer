@@ -12,7 +12,7 @@ import (
 	"github.com/opentracing/opentracing-go"
 )
 
-type Joiner func(operationName string, carrier interface{}) (traceID, parentID, spanID uint64, err error)
+type Joiner func(carrier interface{}) (traceID, parentID, spanID uint64, err error)
 type Injecter func(sp *Span, carrier interface{}) error
 
 var joiners = map[interface{}]Joiner{
@@ -41,7 +41,7 @@ func textInjecter(sp *Span, carrier interface{}) error {
 	return nil
 }
 
-func textJoiner(operationName string, carrier interface{}) (traceID, parentID, spanID uint64, err error) {
+func textJoiner(carrier interface{}) (traceID, parentID, spanID uint64, err error) {
 	r := carrier.(opentracing.TextMapReader)
 	err = r.ForeachKey(func(key string, val string) error {
 		switch key {
@@ -67,7 +67,7 @@ func binaryInjecter(sp *Span, carrier interface{}) error {
 	return err
 }
 
-func binaryJoiner(operationName string, carrier interface{}) (traceID, parentID, spanID uint64, err error) {
+func binaryJoiner(carrier interface{}) (traceID, parentID, spanID uint64, err error) {
 	r := carrier.(io.Reader)
 	b := make([]byte, 24)
 	if _, err := io.ReadFull(r, b); err != nil {
@@ -217,19 +217,19 @@ func (tr *Tracer) Inject(sp opentracing.Span, format interface{}, carrier interf
 
 func (tr *Tracer) Join(operationName string, format interface{}, carrier interface{}) (opentracing.Span, error) {
 	// TODO(dh): support sampling
-	sp := &Span{tracer: tr}
 	joiner, ok := joiners[format]
 	if !ok {
 		return nil, opentracing.ErrUnsupportedFormat
 	}
-	traceID, parentID, spanID, err := joiner(operationName, carrier)
+	traceID, _, spanID, err := joiner(carrier)
 	if err != nil {
 		return nil, opentracing.ErrUnsupportedFormat
 	}
-	sp.TraceID = traceID
-	sp.ParentID = parentID
-	sp.SpanID = spanID
-	return sp, nil
+
+	return tr.StartSpanWithOptions(opentracing.StartSpanOptions{
+		OperationName: operationName,
+		Parent:        &Span{TraceID: traceID, SpanID: spanID},
+	}), nil
 }
 
 // IDGenerator generates IDs for traces and spans. The ID with value 0
