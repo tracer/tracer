@@ -3,7 +3,7 @@ package tracer
 import (
 	"crypto/rand"
 	"encoding/binary"
-	"fmt"
+	"encoding/hex"
 	"time"
 
 	"github.com/opentracing/opentracing-go"
@@ -121,13 +121,24 @@ func (tr *Tracer) StartSpanWithOptions(opts opentracing.StartSpanOptions) opentr
 	return sp
 }
 
+func idToHex(id uint64) string {
+	b := make([]byte, 8)
+	binary.BigEndian.PutUint64(b, id)
+	return hex.EncodeToString(b)
+}
+
+func idFromHex(s string) uint64 {
+	b, _ := hex.DecodeString(s)
+	return binary.BigEndian.Uint64(b)
+}
+
 func (tr *Tracer) Inject(sp opentracing.Span, format interface{}, carrier interface{}) error {
 	switch format {
 	case opentracing.TextMap:
 		w := carrier.(opentracing.TextMapWriter)
-		w.Set("X-B3-TraceId", fmt.Sprintf("%016x", sp.(*Span).TraceID))
-		w.Set("X-B3-SpanId", fmt.Sprintf("%016x", sp.(*Span).SpanID))
-		w.Set("X-B3-ParentSpanId", fmt.Sprintf("%016x", sp.(*Span).ParentID))
+		w.Set("X-B3-TraceId", idToHex(sp.(*Span).TraceID))
+		w.Set("X-B3-SpanId", idToHex(sp.(*Span).SpanID))
+		w.Set("X-B3-ParentSpanId", idToHex(sp.(*Span).ParentID))
 		// TODO(dh): support sampling
 	case opentracing.Binary:
 		// TODO implement
@@ -143,23 +154,13 @@ func (tr *Tracer) Join(operationName string, format interface{}, carrier interfa
 		w := carrier.(opentracing.TextMapReader)
 		sp := &Span{tracer: tr}
 		err := w.ForeachKey(func(key string, val string) error {
-			var id uint64
 			switch key {
 			case "X-B3-TraceId":
-				if _, err := fmt.Sscanf(val, "%016x", &id); err != nil {
-					return err
-				}
-				sp.TraceID = id
+				sp.TraceID = idFromHex(val)
 			case "X-B3-SpanId":
-				if _, err := fmt.Sscanf(val, "%016x", &id); err != nil {
-					return err
-				}
-				sp.SpanID = id
+				sp.SpanID = idFromHex(val)
 			case "X-B3-ParentSpanId":
-				if _, err := fmt.Sscanf(val, "%016x", &id); err != nil {
-					return err
-				}
-				sp.ParentID = id
+				sp.ParentID = idFromHex(val)
 			}
 			return nil
 		})
