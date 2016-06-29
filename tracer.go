@@ -7,12 +7,13 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"io"
+	"strings"
 	"time"
 
 	"github.com/opentracing/opentracing-go"
 )
 
-type Joiner func(carrier interface{}) (traceID, parentID, spanID uint64, err error)
+type Joiner func(carrier interface{}) (traceID, parentID, spanID uint64, baggage map[string]string, err error)
 type Injecter func(sp *Span, carrier interface{}) error
 
 var joiners = map[interface{}]Joiner{
@@ -41,14 +42,18 @@ func textInjecter(sp *Span, carrier interface{}) error {
 	w.Set("X-B3-TraceId", idToHex(sp.TraceID))
 	w.Set("X-B3-SpanId", idToHex(sp.SpanID))
 	w.Set("X-B3-ParentSpanId", idToHex(sp.ParentID))
+	for k, v := range sp.Baggage {
+		w.Set("X-B3-Baggage-"+k, v)
+	}
 	return nil
 }
 
-func textJoiner(carrier interface{}) (traceID, parentID, spanID uint64, err error) {
+func textJoiner(carrier interface{}) (traceID, parentID, spanID uint64, baggage map[string]string, err error) {
 	r, ok := carrier.(opentracing.TextMapReader)
 	if !ok {
-		return 0, 0, 0, opentracing.ErrInvalidCarrier
+		return 0, 0, 0, nil, opentracing.ErrInvalidCarrier
 	}
+	baggage = map[string]string{}
 	err = r.ForeachKey(func(key string, val string) error {
 		switch key {
 		case "X-B3-TraceId":
@@ -57,13 +62,18 @@ func textJoiner(carrier interface{}) (traceID, parentID, spanID uint64, err erro
 			spanID = idFromHex(val)
 		case "X-B3-ParentSpanId":
 			parentID = idFromHex(val)
+		default:
+			if strings.HasPrefix(key, "X-B3-Baggage-") {
+				key = key[len("X-B3-Baggage-"):]
+				baggage[key] = val
+			}
 		}
 		return nil
 	})
 	if traceID == 0 {
-		return 0, 0, 0, opentracing.ErrTraceNotFound
+		return 0, 0, 0, nil, opentracing.ErrTraceNotFound
 	}
-	return traceID, parentID, spanID, err
+	return traceID, parentID, spanID, baggage, err
 }
 
 func binaryInjecter(sp *Span, carrier interface{}) error {
@@ -79,22 +89,22 @@ func binaryInjecter(sp *Span, carrier interface{}) error {
 	return err
 }
 
-func binaryJoiner(carrier interface{}) (traceID, parentID, spanID uint64, err error) {
+func binaryJoiner(carrier interface{}) (traceID, parentID, spanID uint64, baggage map[string]string, err error) {
 	r, ok := carrier.(io.Reader)
 	if !ok {
-		return 0, 0, 0, opentracing.ErrInvalidCarrier
+		return 0, 0, 0, nil, opentracing.ErrInvalidCarrier
 	}
 	b := make([]byte, 24)
 	if _, err := io.ReadFull(r, b); err != nil {
 		if err == io.ErrUnexpectedEOF {
-			return 0, 0, 0, opentracing.ErrTraceNotFound
+			return 0, 0, 0, nil, opentracing.ErrTraceNotFound
 		}
-		return 0, 0, 0, err
+		return 0, 0, 0, nil, err
 	}
 	traceID = binary.BigEndian.Uint64(b)
 	spanID = binary.BigEndian.Uint64(b[8:])
 	parentID = binary.BigEndian.Uint64(b[16:])
-	return traceID, parentID, spanID, err
+	return traceID, parentID, spanID, nil, err
 }
 
 // Span is an implementation of the Open Tracing Span interface.
@@ -106,6 +116,8 @@ type Span struct {
 	TraceID       uint64
 	OperationName string
 	StartTime     time.Time
+
+	Baggage map[string]string
 }
 
 func (sp *Span) SetOperationName(name string) opentracing.Span {
@@ -151,15 +163,12 @@ func (sp *Span) Log(data opentracing.LogData) {
 }
 
 func (sp *Span) SetBaggageItem(key, value string) opentracing.Span {
-	// TODO implement
-	panic("not implemented")
+	sp.Baggage[key] = value
 	return sp
 
 }
 func (sp *Span) BaggageItem(key string) string {
-	// TODO implement
-	panic("not implemented")
-	return ""
+	return sp.Baggage[key]
 }
 
 func (sp *Span) Tracer() opentracing.Tracer {
@@ -242,15 +251,17 @@ func (tr *Tracer) Join(operationName string, format interface{}, carrier interfa
 	if !ok {
 		return nil, opentracing.ErrUnsupportedFormat
 	}
-	traceID, _, spanID, err := joiner(carrier)
+	traceID, _, spanID, baggage, err := joiner(carrier)
 	if err != nil {
 		return nil, opentracing.ErrUnsupportedFormat
 	}
 
-	return tr.StartSpanWithOptions(opentracing.StartSpanOptions{
+	sp := tr.StartSpanWithOptions(opentracing.StartSpanOptions{
 		OperationName: operationName,
 		Parent:        &Span{TraceID: traceID, SpanID: spanID},
-	}), nil
+	})
+	sp.(*Span).Baggage = baggage
+	return sp, nil
 }
 
 // IDGenerator generates IDs for traces and spans. The ID with value 0
