@@ -116,18 +116,23 @@ type Span struct {
 	TraceID       uint64
 	OperationName string
 	StartTime     time.Time
+	FinishTime    time.Time
 
+	Tags    map[string]interface{}
 	Baggage map[string]string
+	Logs    []opentracing.LogData
 }
 
 func (sp *Span) SetOperationName(name string) opentracing.Span {
-	sp.tracer.storer.SetOperationName(sp, name)
 	sp.OperationName = name
 	return sp
 }
 
 func (sp *Span) SetTag(key string, value interface{}) opentracing.Span {
-	sp.tracer.storer.SetTag(sp, key, value)
+	if sp.Tags == nil {
+		sp.Tags = map[string]interface{}{}
+	}
+	sp.Tags[key] = value
 	return sp
 }
 
@@ -139,7 +144,11 @@ func (sp *Span) FinishWithOptions(opts opentracing.FinishOptions) {
 	if opts.FinishTime.IsZero() {
 		opts.FinishTime = time.Now()
 	}
-	sp.tracer.storer.FinishWithOptions(sp, opts)
+	sp.FinishTime = opts.FinishTime
+	for _, log := range opts.BulkLogData {
+		sp.Log(log)
+	}
+	sp.tracer.storer.Store(sp)
 }
 
 func (sp *Span) LogEvent(event string) {
@@ -159,7 +168,7 @@ func (sp *Span) Log(data opentracing.LogData) {
 	if data.Timestamp.IsZero() {
 		data.Timestamp = time.Now()
 	}
-	sp.tracer.storer.Log(sp, data)
+	sp.Logs = append(sp.Logs, data)
 }
 
 func (sp *Span) SetBaggageItem(key, value string) opentracing.Span {
@@ -217,7 +226,6 @@ func (tr *Tracer) StartSpanWithOptions(opts opentracing.StartSpanOptions) opentr
 		TraceID:       traceID,
 		StartTime:     opts.StartTime,
 	}
-	tr.storer.AddSpan(sp)
 	return sp
 }
 
@@ -270,28 +278,17 @@ type IDGenerator interface {
 	GenerateID() uint64
 }
 
-// Storer maps Open Tracing operations to a backend. The backend can
-// be actual storage in a database, or a transport to a remote server,
-// or coalescion of spans, and so on.
+// A Storer stores a finished span. "Storing" a span may either mean
+// saving it in a storage engine, or sending it to a remote
+// collector.
 //
-// It is up to the implementation whether it acts on operations right
-// away or if it caches them. For example, an implementation could
-// wait for a call to FinishWithOptions before storing a span, at the
-// risk of losing spans in case of crashes.
+// If a span with the same ID and the same trace ID already exists,
+// the existing and new spans should be merged into one span.
+//
+// Because spans are only stored once they're done, children will be
+// stored before their parents.
 type Storer interface {
-	// AddSpan creates a new span.
-	AddSpan(sp *Span)
-	// SetOperationName sets the operation name of the span.
-	SetOperationName(sp *Span, name string)
-	// SetTag sets the tag key to value. Duplicate keys overwrite each
-	// other. Any value that can marshal to JSON is allowed.
-	SetTag(sp *Span, key string, value interface{})
-	// FinishWithOptions marks the span sp as done. FinishTime will
-	// already be populated.
-	FinishWithOptions(sp *Span, opts opentracing.FinishOptions)
-	// Log logs an event. Timestamp will already be populated. The
-	// payload must be a value that can marshal to JSON.
-	Log(sp *Span, data opentracing.LogData)
+	Store(sp *Span)
 }
 
 type Queryer interface {

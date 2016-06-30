@@ -2,56 +2,32 @@ This file documents some of the early design ideas and questions for
 Tracer.
 
 * The Storer interface
-  The Storer interface is modelled closely after the OpenTracing API.
-  It allows implementing two kinds of storers:
+  The Storer interface provides a simple interface for storing a span.
 
-  - Those that act directly on each function call.
-  - Those that store the data and only act on it when
-    FinishWithOptions is called.
-
-  The first approach, while needing more resources, allows tracing of
-  requests that never finish properly, for example because they
-  crashed. The second approach enables the far more resource-friendly
-  collection of data of a single span and storing it in one go,
-  reducing the amount of I/O.
-
-  Additionally, the interface is designed in such a way that it can be
-  used for actual "storing the data somewhere" backends (e.g. a BoltDB
+  The interface is designed in such a way that it can be used for
+  actual "storing the data somewhere" backends (e.g. a BoltDB
   backend), and for client/server models, where the client is an
-  implementation of Storer, sending the individual function calls, or
-  the final spans only, to a remote server. Dapper's mode of
-  operation, where spans are stored locally on disk and then picked up
-  by collectors, can also be implemented with this interface.
+  implementation of Storer, sending the spans to a remote server.
+  Dapper's mode of operation, where spans are stored locally on disk
+  and then picked up by collectors, can also be implemented with this
+  interface.
 
 ** Individual function calls vs entire spans
-   Storing spans only after they've been marked as finished, while
-   being friendlier on resource usage, has the distinct drawback of
-   losing information whenever a process crashes. Now, traces are
-   already sampled and it isn't a big problem to lose arbitrary
-   traces. It is, however, undesirable to lose the traces of the
-   requests that cause the crash. There could be a lot of crashing
-   requests in a short period of time, hinting at a bigger problem, or
-   there may be stray crashes, caused by rarely used code paths being
-   triggered.
-
-   In systems with low traffic, acting on each function call might be
-   viable and a welcome mode of operation. In large systems, however,
-   this could considerably impact performance. A compromise would be
-   to enable the per-function mode only for requests with forced
-   sampling, i.e. those requests that are actively being debugged.
-   This, however, requires that the concrete Storer implementation(s)
-   involved support both modes.
-
-   The default Storer implementation that is part of the client/server
-   model will support both modes of operation. The same cannot be said
-   for the actual backends, however.
+   Ideally, we would want to store spans as they're being built, to
+   avoid losing any information in the case of a crash. Practically,
+   however, this would ruin performance, and complicate interfaces.
+   Instead, crashes should be analysed differently. Crashes should
+   already be logged with their stack traces and core dumps. It seems
+   feasible to also store the trace ID. As long as some of the spans
+   finished, e.g. in other services, there will be a trace to
+   associate the crash with.
 
 * ID generation
   Each trace and each span is identified by a unique ID. Generation of
   this ID is decoupled from the storage backend; however, a storage
   backend may optionally also support generating IDs.
 
-  Implementations will implement a one-function interface IDGenerator,
+  Implementations will implement a one-functionxb interface IDGenerator,
   that returns a uint64.
 
   A few possible ID generation schemes are:
