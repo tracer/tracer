@@ -1,0 +1,163 @@
+This file documents some of the early design ideas and questions for
+Tracer.
+
+* The Storer interface
+  The Storer interface is modelled closely after the OpenTracing API.
+  It allows implementing two kinds of storers:
+
+  - Those that act directly on each function call.
+  - Those that store the data and only act on it when
+    FinishWithOptions is called.
+
+  The first approach, while needing more resources, allows tracing of
+  requests that never finish properly, for example because they
+  crashed. The second approach enables the far more resource-friendly
+  collection of data of a single span and storing it in one go,
+  reducing the amount of I/O.
+
+  Additionally, the interface is designed in such a way that it can be
+  used for actual "storing the data somewhere" backends (e.g. a BoltDB
+  backend), and for client/server models, where the client is an
+  implementation of Storer, sending the individual function calls, or
+  the final spans only, to a remote server. Dapper's mode of
+  operation, where spans are stored locally on disk and then picked up
+  by collectors, can also be implemented with this interface.
+
+** Individual function calls vs entire spans
+   Storing spans only after they've been marked as finished, while
+   being friendlier on resource usage, has the distinct drawback of
+   losing information whenever a process crashes. Now, traces are
+   already sampled and it isn't a big problem to lose arbitrary
+   traces. It is, however, undesirable to lose the traces of the
+   requests that cause the crash. There could be a lot of crashing
+   requests in a short period of time, hinting at a bigger problem, or
+   there may be stray crashes, caused by rarely used code paths being
+   triggered.
+
+   In systems with low traffic, acting on each function call might be
+   viable and a welcome mode of operation. In large systems, however,
+   this could considerably impact performance. A compromise would be
+   to enable the per-function mode only for requests with forced
+   sampling, i.e. those requests that are actively being debugged.
+   This, however, requires that the concrete Storer implementation(s)
+   involved support both modes.
+
+   The default Storer implementation that is part of the client/server
+   model will support both modes of operation. The same cannot be said
+   for the actual backends, however.
+
+* ID generation
+  Each trace and each span is identified by a unique ID. Generation of
+  this ID is decoupled from the storage backend; however, a storage
+  backend may optionally also support generating IDs.
+
+  Implementations will implement a one-function interface IDGenerator,
+  that returns a uint64.
+
+  A few possible ID generation schemes are:
+
+  - Fully random number sourced from /dev/urandom
+
+    For many systems, this degree of randomness will be enough to
+    guarantee no practical collisions.
+
+  - Relying on globally sequential counters, like those provided by
+    BoltDB and Zookeeper.
+
+    While not generally a good idea due to their impact on
+    performance, they might be useful in local testing.
+
+  - Making use of a system like Snowflake.
+
+* Sampling
+  Any good tracing system should support sampling of traces. With
+  Tracer, we'll use pre-sampling. The server that first accepts a
+  request from a user will determine whether the request should be
+  traced or not. It may do so based on rolling a die, hashing some of
+  the request information, or looking at headers that force tracing
+  the particular request. This sampling decision will then be
+  transmitted in-band to all the other services, which use that
+  information to enable or disable tracing of that particular request.
+
+  From an implementation point of view, there is one distinct
+  complication: We want to provide some kind of interface for
+  different sampling mechanisms. However, these mechanisms will need
+  vastly varying kinds of inputs. Some may want to sample based on an
+  HTTP header, while others may want access to a gRPC connection to
+  extract the IP from. The interface would need to accept a value of
+  type interface{}, and we would need a user-facing API that allows
+  passing request information to the sampler.
+
+  We might also want to design the API in such a way that chaining
+  multiple samplers becomes easy.
+
+* The client/server model
+  Quick notes only for now:
+
+  - Tracing shouldn't negatively impact performance. There shouldn't
+    be a 30ms stall because we're trying to transmit a span while the
+    trace server is down.
+  - We may want to send spans concurrent with the application code.
+    However the Storer implementations would then need to support out
+    of order spans.
+
+* Tracer the set of libraries vs Tracer the application
+  When we speak of Tracer, we refer to two distinct concepts: Tracer,
+  the set of libraries and interfaces that people can use and code
+  against, and Tracer the application that will be deployed on a
+  server to collect traces.
+
+  Every instrumented service will use a subset of Tracer, the
+  libraries: The part that implements the OpenTracer interface and
+  sends data to a Storer. While in testing, the Storer may be an
+  actual storage backend such as BoltDB, in production use it will
+  either be a client in a client/server model, or it will use Dapper's
+  model of collectors. In either case, instrumented services will only
+  use Tracer to generate spans.
+
+  Tracer, the application, will run on servers and be responsible for
+  retrieving spans. It, too, will use the libraries, in particular to
+  use the Storer implementations that store data to disk. Tracer the
+  application will offer at least one way for clients to communicate
+  with it. Tracer the application will also provide APIs to _retrieve_
+  spans, e.g. to display them in a frontend.
+
+  In general, all parts of Tracer (the application and the libraries)
+  are designed in such a way that they can exist in the same process
+  apce as the instrumented service. This is useful for testing out
+  Tracer, and it encourages just the right amount of modularity.
+
+* Querying
+  Storing traces is only useful if they can be retrieved, too.
+
+  Currently we're envisioning an API that allows retrieving traces and
+  spans based on the following data:
+
+  - Time range
+  - Duration
+  - Operation name
+  - Whether a tag is (un)set
+  - Tag value
+  - Log entries
+  - Marked as (un)finished
+
+  Also, instead of individual spans, the API can be instructed to only
+  return the associated root span, i.e. the whole trace.
+
+  The spans should be sortable, at least based on the time range.
+
+  Advanced filtering and sorting will be implemented in the frontend.
+
+* Backends
+  Some quick notes on possible backends.
+
+** PostgreSQL
+   Will perform decently, but will be hard to scale
+** BoltDB
+   Nice for testing or low traffic services. Random write performance
+   is too low for high traffic, and it will not scale beyond a single
+   machine easily.
+** Cassandra
+   Is what Zipkin uses by default and akin to BigTable, which Dapper
+   uses. However it requires running a Java stack. Not having to do
+   that is the primary reason for Tracer.
