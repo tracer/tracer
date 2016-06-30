@@ -259,17 +259,18 @@ func (tr *Tracer) Join(operationName string, format interface{}, carrier interfa
 	if !ok {
 		return nil, opentracing.ErrUnsupportedFormat
 	}
-	traceID, _, spanID, baggage, err := joiner(carrier)
+	traceID, parentID, spanID, baggage, err := joiner(carrier)
 	if err != nil {
 		return nil, opentracing.ErrUnsupportedFormat
 	}
 
-	sp := tr.StartSpanWithOptions(opentracing.StartSpanOptions{
-		OperationName: operationName,
-		Parent:        &Span{TraceID: traceID, SpanID: spanID},
-	})
-	sp.(*Span).Baggage = baggage
-	return sp, nil
+	return &Span{
+		tracer:   tr,
+		TraceID:  traceID,
+		SpanID:   spanID,
+		ParentID: parentID,
+		Baggage:  baggage,
+	}, nil
 }
 
 // IDGenerator generates IDs for traces and spans. The ID with value 0
