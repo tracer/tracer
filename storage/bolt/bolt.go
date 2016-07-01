@@ -87,7 +87,7 @@ func (st *Storage) Store(sp *tracer.Span) {
 					return err
 				}
 			}
-			if err := spans.Put([]byte(key+"timestamp"), []byte(log.Timestamp.Format(time.RFC3339))); err != nil {
+			if err := spans.Put([]byte(key+"timestamp"), []byte(log.Timestamp.Format(time.RFC3339Nano))); err != nil {
 				return err
 			}
 		}
