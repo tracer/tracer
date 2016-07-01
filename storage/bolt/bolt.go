@@ -48,11 +48,11 @@ func (st *Storage) GenerateID() uint64 {
 	return id
 }
 
-func buildID(sp *tracer.Span) string {
+func buildID(sp tracer.RawSpan) string {
 	return fmt.Sprintf("%016x-%016x-%016x", sp.TraceID, sp.ParentID, sp.SpanID)
 }
 
-func (st *Storage) Store(sp *tracer.Span) error {
+func (st *Storage) Store(sp tracer.RawSpan) error {
 	id := buildID(sp)
 	return st.db.Update(func(tx *bolt.Tx) error {
 		spans := tx.Bucket([]byte("spans"))

@@ -111,7 +111,10 @@ func binaryJoiner(carrier interface{}) (traceID, parentID, spanID uint64, baggag
 // Span is an implementation of the Open Tracing Span interface.
 type Span struct {
 	tracer *Tracer
+	RawSpan
+}
 
+type RawSpan struct {
 	SpanID        uint64
 	ParentID      uint64
 	TraceID       uint64
@@ -228,12 +231,14 @@ func (tr *Tracer) StartSpanWithOptions(opts opentracing.StartSpanOptions) opentr
 	}
 	id := tr.idGenerator.GenerateID()
 	sp := &Span{
-		tracer:        tr,
-		OperationName: opts.OperationName,
-		SpanID:        id,
-		ParentID:      parentID,
-		TraceID:       traceID,
-		StartTime:     opts.StartTime,
+		tracer: tr,
+		RawSpan: RawSpan{
+			OperationName: opts.OperationName,
+			SpanID:        id,
+			ParentID:      parentID,
+			TraceID:       traceID,
+			StartTime:     opts.StartTime,
+		},
 	}
 	return sp
 }
@@ -274,11 +279,13 @@ func (tr *Tracer) Join(operationName string, format interface{}, carrier interfa
 	}
 
 	return &Span{
-		tracer:   tr,
-		TraceID:  traceID,
-		SpanID:   spanID,
-		ParentID: parentID,
-		Baggage:  baggage,
+		tracer: tr,
+		RawSpan: RawSpan{
+			TraceID:  traceID,
+			SpanID:   spanID,
+			ParentID: parentID,
+			Baggage:  baggage,
+		},
 	}, nil
 }
 
@@ -298,11 +305,11 @@ type IDGenerator interface {
 // Because spans are only stored once they're done, children will be
 // stored before their parents.
 type Storer interface {
-	Store(sp *Span) error
+	Store(sp RawSpan) error
 }
 
 type Queryer interface {
-	SpanWithID(id uint64) (*Span, bool)
+	SpanWithID(id uint64) (RawSpan, bool)
 }
 
 // RandomID generates random IDs by using crypto/rand.
