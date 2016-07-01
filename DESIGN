@@ -137,3 +137,24 @@ Tracer.
    Is what Zipkin uses by default and akin to BigTable, which Dapper
    uses. However it requires running a Java stack. Not having to do
    that is the primary reason for Tracer.
+
+* One or two spans per RPC request
+  There are two different ways to model internal RPC requests in
+  tracing.
+
+  One way is to use a single span for both the client and
+  server parts. This is the way Zipkin currently operates. In
+  particuar, it records cs, cr, sr and ss events (client send, client
+  receive, server receive, server send) to record timing.
+
+  This model has the benefit of encapsulating the entire lifetime of
+  an RPC call in a single span. However, it makes it harder to record
+  non-RPC request kinds. Furthermore, it complicates building service
+  dependency graphs. The alternative to this is to have two spans, one
+  for the client and one for the server. Instead of storing cs, cr and
+  so on, each span would have a start time and a duration (or end
+  time). In this model, the spans possibly should have an attribute
+  such as "kind", to differentiate client and server spans.
+
+  We will use the two spans model. More generically, this is the model
+  where spans aren't shared across service boundaries.
