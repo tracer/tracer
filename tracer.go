@@ -298,7 +298,7 @@ type IDGenerator interface {
 // Because spans are only stored once they're done, children will be
 // stored before their parents.
 type Storer interface {
-	Store(sp *Span)
+	Store(sp *Span) error
 }
 
 type Queryer interface {

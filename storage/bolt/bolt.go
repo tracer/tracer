@@ -52,9 +52,9 @@ func buildID(sp *tracer.Span) string {
 	return fmt.Sprintf("%016x-%016x-%016x", sp.TraceID, sp.ParentID, sp.SpanID)
 }
 
-func (st *Storage) Store(sp *tracer.Span) {
+func (st *Storage) Store(sp *tracer.Span) error {
 	id := buildID(sp)
-	st.db.Update(func(tx *bolt.Tx) error {
+	return st.db.Update(func(tx *bolt.Tx) error {
 		spans := tx.Bucket([]byte("spans"))
 		if err := spans.Put([]byte(id), nil); err != nil {
 			return err
