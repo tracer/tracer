@@ -261,7 +261,7 @@ func (tr *Tracer) Join(operationName string, format interface{}, carrier interfa
 	}
 	traceID, parentID, spanID, baggage, err := joiner(carrier)
 	if err != nil {
-		return nil, opentracing.ErrUnsupportedFormat
+		return nil, err
 	}
 
 	return &Span{
