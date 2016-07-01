@@ -55,15 +55,16 @@ func textJoiner(carrier interface{}) (traceID, parentID, spanID uint64, baggage 
 	}
 	baggage = map[string]string{}
 	err = r.ForeachKey(func(key string, val string) error {
-		switch key {
-		case "X-B3-TraceId":
+		lower := strings.ToLower(key)
+		switch lower {
+		case "x-b3-traceid":
 			traceID = idFromHex(val)
-		case "X-B3-SpanId":
+		case "x-b3-spanid":
 			spanID = idFromHex(val)
-		case "X-B3-ParentSpanId":
+		case "x-b3-parentspanid":
 			parentID = idFromHex(val)
 		default:
-			if strings.HasPrefix(key, "X-B3-Baggage-") {
+			if strings.HasPrefix(lower, "x-b3-baggage-") {
 				key = key[len("X-B3-Baggage-"):]
 				baggage[key] = val
 			}
