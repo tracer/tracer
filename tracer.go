@@ -175,10 +175,18 @@ func (sp *Span) Log(data opentracing.LogData) {
 func (sp *Span) SetBaggageItem(key, value string) opentracing.Span {
 	sp.Baggage[key] = value
 	return sp
-
 }
+
 func (sp *Span) BaggageItem(key string) string {
 	return sp.Baggage[key]
+}
+
+func (sp *Span) ForeachBaggageItem(handler func(k, v string) bool) {
+	for k, v := range sp.Baggage {
+		if !handler(k, v) {
+			return
+		}
+	}
 }
 
 func (sp *Span) Tracer() opentracing.Tracer {
