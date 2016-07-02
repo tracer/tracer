@@ -7,6 +7,7 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"io"
+	"log"
 	"strings"
 	"time"
 
@@ -152,7 +153,9 @@ func (sp *Span) FinishWithOptions(opts opentracing.FinishOptions) {
 	for _, log := range opts.BulkLogData {
 		sp.Log(log)
 	}
-	sp.tracer.storer.Store(sp)
+	if err := sp.tracer.storer.Store(sp.RawSpan); err != nil {
+		log.Println("error while storing tracing span:", err)
+	}
 }
 
 func (sp *Span) LogEvent(event string) {
