@@ -72,6 +72,32 @@ func (st *Storage) Store(sp tracer.RawSpan) (err error) {
 	return nil
 }
 
+func (st *Storage) TraceWithID(id uint64) (tracer.RawTrace, error) {
+	tx, err := st.db.Begin()
+	if err != nil {
+		return tracer.RawTrace{}, err
+	}
+	defer tx.Rollback()
+	return st.traceWithID(tx, id)
+}
+
+func (st *Storage) traceWithID(tx *sql.Tx, id uint64) (tracer.RawTrace, error) {
+	rows, err := tx.Query(`SELECT spans.id, spans.trace_id, spans.start_time, spans.end_time, spans.operation_name, tags.key, tags.value, tags.time FROM spans LEFT JOIN tags ON spans.id = tags.span_id WHERE spans.trace_id = $1 ORDER BY spans.start_time ASC, spans.id`,
+		int64(id))
+	if err != nil {
+		return tracer.RawTrace{}, err
+	}
+
+	spans, err := scanSpans(rows)
+	if err != nil {
+		return tracer.RawTrace{}, err
+	}
+	return tracer.RawTrace{
+		TraceID: id,
+		Spans:   spans,
+	}, nil
+}
+
 func scanSpans(rows *sql.Rows) ([]tracer.RawSpan, error) {
 	// TODO select parents
 	var spans []tracer.RawSpan

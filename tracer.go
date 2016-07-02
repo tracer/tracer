@@ -109,6 +109,11 @@ func binaryJoiner(carrier interface{}) (traceID, parentID, spanID uint64, baggag
 	return traceID, parentID, spanID, nil, err
 }
 
+type RawTrace struct {
+	TraceID uint64
+	Spans   []RawSpan
+}
+
 // Span is an implementation of the Open Tracing Span interface.
 type Span struct {
 	tracer *Tracer
@@ -312,6 +317,7 @@ type Storer interface {
 }
 
 type Queryer interface {
+	TraceWithID(id uint64) (RawTrace, error)
 	SpanWithID(id uint64) (RawSpan, error)
 	QuerySpans(q Query) ([]RawSpan, error)
 }
