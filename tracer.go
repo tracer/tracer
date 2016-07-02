@@ -312,7 +312,21 @@ type Storer interface {
 }
 
 type Queryer interface {
-	SpanWithID(id uint64) (RawSpan, bool)
+	SpanWithID(id uint64) (RawSpan, error)
+	QuerySpans(q Query) ([]RawSpan, error)
+}
+
+type QueryTag struct {
+	Key        string
+	Value      string
+	CheckValue bool
+}
+
+type Query struct {
+	StartTime  time.Time
+	FinishTime time.Time
+	AndTags    []QueryTag
+	OrTags     []QueryTag
 }
 
 // RandomID generates random IDs by using crypto/rand.
