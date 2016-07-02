@@ -229,10 +229,10 @@ func (tr *Tracer) StartSpanWithOptions(opts opentracing.StartSpanOptions) opentr
 		parentID = parent.SpanID
 		traceID = parent.TraceID
 	}
-	if traceID == 0 {
-		traceID = tr.idGenerator.GenerateID()
-	}
 	id := tr.idGenerator.GenerateID()
+	if traceID == 0 {
+		traceID = id
+	}
 	sp := &Span{
 		tracer: tr,
 		RawSpan: RawSpan{
