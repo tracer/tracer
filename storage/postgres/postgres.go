@@ -190,15 +190,9 @@ func (st *Storage) QueryTraces(q tracer.Query) ([]tracer.RawTrace, error) {
 	var andArgs []interface{}
 	var orConds []string
 	var orArgs []interface{}
-	if !q.StartTime.IsZero() {
-		andConds = append(andConds, `(start_time >= ?)`)
-		andArgs = append(andArgs, q.StartTime)
+	if q.FinishTime.IsZero() {
+		q.FinishTime = time.Now()
 	}
-	if !q.FinishTime.IsZero() {
-		andConds = append(andConds, `(end_time <= ?)`)
-		andArgs = append(andArgs, q.FinishTime)
-	}
-
 	for _, tag := range q.AndTags {
 		if tag.CheckValue {
 			andConds = append(andConds, `(tags.key = ? AND tags.value = ?)`)
@@ -228,11 +222,12 @@ func (st *Storage) QueryTraces(q tracer.Query) ([]tracer.RawTrace, error) {
 	if or != "" {
 		conds = append(conds, or)
 	}
-	query := st.db.Rebind("SELECT spans.trace_id, MIN(spans.start_time) FROM spans LEFT JOIN tags ON spans.id = tags.span_id WHERE " + strings.Join(conds, " AND ") + " GROUP BY spans.trace_id ORDER BY MIN(spans.start_time) ASC, spans.trace_id")
-	fmt.Println(query)
+
+	query := st.db.Rebind("SELECT spans.trace_id, MIN(spans.start_time) FROM spans LEFT JOIN tags ON spans.id = tags.span_id WHERE " + strings.Join(conds, " AND ") + " GROUP BY spans.trace_id HAVING MIN(spans.start_time) >= ? AND MAX(spans.end_time) <= ? ORDER BY MIN(spans.start_time) ASC, spans.trace_id")
 	args := make([]interface{}, 0, len(andArgs)+len(orArgs))
 	args = append(args, andArgs...)
 	args = append(args, orArgs...)
+	args = append(args, q.StartTime, q.FinishTime)
 
 	var ids []int64
 	rows, err := st.db.Query(query, args...)
