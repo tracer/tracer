@@ -72,6 +72,62 @@ func (st *Storage) Store(sp tracer.RawSpan) (err error) {
 	return nil
 }
 
+func scanSpans(rows *sql.Rows) ([]tracer.RawSpan, error) {
+	// TODO select parents
+	var spans []tracer.RawSpan
+	var (
+		prevSpanID int64
+
+		spanID        int64
+		traceID       int64
+		startTime     time.Time
+		endTime       time.Time
+		operationName string
+		tagKey        string
+		tagValue      string
+		tagTime       *time.Time
+	)
+	tagTime = new(time.Time)
+	var span tracer.RawSpan
+	for rows.Next() {
+		if err := rows.Scan(&spanID, &traceID, &startTime, &endTime, &operationName, &tagKey, &tagValue, &tagTime); err != nil {
+			return nil, err
+		}
+		if spanID != prevSpanID {
+			if prevSpanID != 0 {
+				spans = append(spans, span)
+			}
+			prevSpanID = spanID
+			span = tracer.RawSpan{
+				Tags: map[string]interface{}{},
+			}
+		}
+		span.SpanID = uint64(spanID)
+		span.TraceID = uint64(traceID)
+		span.StartTime = startTime
+		span.FinishTime = endTime
+		span.OperationName = operationName
+		if tagKey != "" {
+			if tagTime == nil {
+				span.Tags[tagKey] = tagValue
+			} else {
+				span.Logs = append(span.Logs, opentracing.LogData{
+					Timestamp: *tagTime,
+					Event:     tagKey,
+					Payload:   tagValue,
+				})
+			}
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if span.SpanID != 0 {
+		spans = append(spans, span)
+	}
+	return spans, nil
+}
+
 func (st *Storage) SpanWithID(id uint64) (tracer.RawSpan, error) {
 	tx, err := st.db.Begin()
 	if err != nil {
@@ -82,44 +138,19 @@ func (st *Storage) SpanWithID(id uint64) (tracer.RawSpan, error) {
 }
 
 func (st *Storage) spanWithID(tx *sql.Tx, id uint64) (tracer.RawSpan, error) {
-	// TODO select parent
-	var sp tracer.RawSpan
-	row := tx.QueryRow(`SELECT id, trace_id, start_time, end_time, operation_name FROM spans WHERE id = $1`,
+	rows, err := tx.Query(`SELECT spans.id, spans.trace_id, spans.start_time, spans.end_time, spans.operation_name, tags.key, tags.value, tags.time FROM spans LEFT JOIN tags ON spans.id = tags.span_id WHERE id = $1 LIMIT 1`,
 		int64(id))
-	var spanID, traceID int64
-	if err := row.Scan(&spanID, &traceID, &sp.StartTime, &sp.FinishTime, &sp.OperationName); err != nil {
-		return tracer.RawSpan{}, err
-	}
-	sp.SpanID = uint64(spanID)
-	sp.TraceID = uint64(traceID)
-
-	rows, err := tx.Query(`SELECT key, value, time FROM tags WHERE span_id = $1`, int64(id))
 	if err != nil {
 		return tracer.RawSpan{}, err
 	}
-
-	var k, v string
-	t := new(time.Time)
-	sp.Tags = map[string]interface{}{}
-	for rows.Next() {
-		if err := rows.Scan(&k, &v, &t); err != nil {
-			return tracer.RawSpan{}, err
-		}
-		if t == nil {
-			sp.Tags[k] = v
-		} else {
-			sp.Logs = append(sp.Logs, opentracing.LogData{
-				Timestamp: *t,
-				Event:     k,
-				Payload:   v,
-			})
-		}
-	}
-	if err := rows.Err(); err != nil {
+	spans, err := scanSpans(rows)
+	if err != nil {
 		return tracer.RawSpan{}, err
 	}
-
-	return sp, nil
+	if len(spans) == 0 {
+		return tracer.RawSpan{}, sql.ErrNoRows
+	}
+	return spans[0], nil
 }
 
 func (st *Storage) QuerySpans(q tracer.Query) ([]tracer.RawSpan, error) {
