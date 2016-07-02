@@ -228,7 +228,7 @@ func (st *Storage) QueryTraces(q tracer.Query) ([]tracer.RawTrace, error) {
 	if or != "" {
 		conds = append(conds, or)
 	}
-	query := st.db.Rebind("SELECT DISTINCT spans.trace_id, spans.start_time FROM spans LEFT JOIN tags ON spans.id = tags.span_id WHERE " + strings.Join(conds, " AND ") + " ORDER BY spans.start_time ASC, spans.trace_id")
+	query := st.db.Rebind("SELECT spans.trace_id, MIN(spans.start_time) FROM spans LEFT JOIN tags ON spans.id = tags.span_id WHERE " + strings.Join(conds, " AND ") + " GROUP BY spans.trace_id ORDER BY MIN(spans.start_time) ASC, spans.trace_id")
 	fmt.Println(query)
 	args := make([]interface{}, 0, len(andArgs)+len(orArgs))
 	args = append(args, andArgs...)
