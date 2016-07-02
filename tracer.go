@@ -319,7 +319,7 @@ type Storer interface {
 type Queryer interface {
 	TraceWithID(id uint64) (RawTrace, error)
 	SpanWithID(id uint64) (RawSpan, error)
-	QuerySpans(q Query) ([]RawSpan, error)
+	QueryTraces(q Query) ([]RawSpan, error)
 }
 
 type QueryTag struct {

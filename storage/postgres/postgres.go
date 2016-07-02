@@ -179,7 +179,7 @@ func (st *Storage) spanWithID(tx *sql.Tx, id uint64) (tracer.RawSpan, error) {
 	return spans[0], nil
 }
 
-func (st *Storage) QuerySpans(q tracer.Query) ([]tracer.RawSpan, error) {
+func (st *Storage) QueryTraces(q tracer.Query) ([]tracer.RawTrace, error) {
 	tx, err := st.db.Begin()
 	if err != nil {
 		return nil, err
@@ -228,7 +228,7 @@ func (st *Storage) QuerySpans(q tracer.Query) ([]tracer.RawSpan, error) {
 	if or != "" {
 		conds = append(conds, or)
 	}
-	query := st.db.Rebind("SELECT DISTINCT spans.id, spans.start_time FROM spans LEFT JOIN tags ON spans.id = tags.span_id WHERE " + strings.Join(conds, " AND ") + " ORDER BY spans.start_time ASC")
+	query := st.db.Rebind("SELECT DISTINCT spans.trace_id, spans.start_time FROM spans LEFT JOIN tags ON spans.id = tags.span_id WHERE " + strings.Join(conds, " AND ") + " ORDER BY spans.start_time ASC, spans.trace_id")
 	fmt.Println(query)
 	args := make([]interface{}, 0, len(andArgs)+len(orArgs))
 	args = append(args, andArgs...)
@@ -251,13 +251,13 @@ func (st *Storage) QuerySpans(q tracer.Query) ([]tracer.RawSpan, error) {
 		return nil, err
 	}
 
-	var spans []tracer.RawSpan
+	var traces []tracer.RawTrace
 	for _, id := range ids {
-		span, err := st.spanWithID(tx, uint64(id))
+		trace, err := st.traceWithID(tx, uint64(id))
 		if err != nil {
 			return nil, err
 		}
-		spans = append(spans, span)
+		traces = append(traces, trace)
 	}
-	return spans, nil
+	return traces, nil
 }
