@@ -422,6 +422,8 @@ type Query struct {
 	OrTags        []QueryTag
 }
 
+var _ IDGenerator = RandomID{}
+
 // RandomID generates random IDs by using crypto/rand.
 type RandomID struct{}
 
