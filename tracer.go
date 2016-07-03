@@ -329,10 +329,11 @@ type QueryTag struct {
 }
 
 type Query struct {
-	StartTime  time.Time
-	FinishTime time.Time
-	AndTags    []QueryTag
-	OrTags     []QueryTag
+	StartTime     time.Time
+	FinishTime    time.Time
+	OperationName string
+	AndTags       []QueryTag
+	OrTags        []QueryTag
 }
 
 // RandomID generates random IDs by using crypto/rand.

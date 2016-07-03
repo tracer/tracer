@@ -303,6 +303,7 @@ WHERE
       ` + strings.Join(conds, " AND ") + `
   ) AND
   ? @> spans.time AND
+  (? = '' OR operation_name = ?) AND
   spans.id = spans.trace_id
 ORDER BY
   spans.time ASC,
@@ -312,6 +313,7 @@ ORDER BY
 	args = append(args, andArgs...)
 	args = append(args, orArgs...)
 	args = append(args, timeRange{q.StartTime, q.FinishTime})
+	args = append(args, q.OperationName, q.OperationName)
 
 	var ids []int64
 	rows, err := st.db.Query(query, args...)
