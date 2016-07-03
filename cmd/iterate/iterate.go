@@ -1,33 +1,26 @@
 package main
 
 import (
-	"fmt"
+	"database/sql"
 
-	"github.com/boltdb/bolt"
+	_ "github.com/lib/pq"
+	"honnef.co/go/spew"
+	"honnef.co/go/tracer"
+	"honnef.co/go/tracer/storage/postgres"
 )
 
 func main() {
-	db, err := bolt.Open("/tmp/db", 0600, nil)
+	db, err := sql.Open("postgres", "user=tracer dbname=postgres password=tracer sslmode=disable")
 	if err != nil {
 		panic(err)
 	}
-	db.View(func(tx *bolt.Tx) error {
-		fmt.Println("indexes:")
-		indexes := tx.Bucket([]byte("indexes"))
-		c := indexes.Cursor()
-		for k, v := c.First(); k != nil; k, v = c.Next() {
-			fmt.Printf("span id=%s, full id=%s\n", k, v)
-		}
-		fmt.Println()
-
-		fmt.Println("spans:")
-		spans := tx.Bucket([]byte("spans"))
-		c = spans.Cursor()
-		for k, v := c.First(); k != nil; k, v = c.Next() {
-			fmt.Printf("key=%s, value=%s\n", k, v)
-		}
-
-		return nil
-	})
-
+	storage := postgres.New(db)
+	spew.Dump(storage.QueryTraces(
+		tracer.Query{
+			//MaxDuration: time.Second,
+			//StartTime: time.Now().Add(-1 * time.Hour),
+			AndTags: []tracer.QueryTag{
+				{"url", "/hello2", true},
+			},
+		}))
 }

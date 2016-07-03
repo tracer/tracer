@@ -1,17 +1,21 @@
 package main
 
 import (
-	"honnef.co/go/tracer"
-	"honnef.co/go/tracer/storage/bolt"
+	"database/sql"
 
+	"honnef.co/go/tracer"
+	"honnef.co/go/tracer/storage/postgres"
+
+	_ "github.com/lib/pq"
 	"github.com/opentracing/opentracing-go"
 )
 
 func main() {
-	storage, err := bolt.New("/tmp/db")
+	db, err := sql.Open("postgres", "user=tracer dbname=postgres password=tracer sslmode=disable")
 	if err != nil {
 		panic(err)
 	}
+	storage := postgres.New(db)
 	opentracing.InitGlobalTracer(tracer.NewTracer(storage, tracer.RandomID{}))
 	tracer := opentracing.GlobalTracer()
 
@@ -26,6 +30,8 @@ func main() {
 	span3.Finish()
 	span4 := opentracing.StartChildSpan(span2, "redis")
 	span4.LogEvent("store")
+	span4.SetTag("k", "v")
+	span4.SetTag("invalid", 2i)
 	span4.Finish()
 	span2.Finish()
 	span1.Finish()
