@@ -51,11 +51,11 @@ func textInjecter(sp *Span, carrier interface{}) error {
 	if !ok {
 		return opentracing.ErrInvalidCarrier
 	}
-	w.Set("X-B3-TraceId", idToHex(sp.TraceID))
-	w.Set("X-B3-SpanId", idToHex(sp.SpanID))
-	w.Set("X-B3-ParentSpanId", idToHex(sp.ParentID))
+	w.Set("Tracer-TraceId", idToHex(sp.TraceID))
+	w.Set("Tracer-SpanId", idToHex(sp.SpanID))
+	w.Set("Tracer-ParentSpanId", idToHex(sp.ParentID))
 	for k, v := range sp.Baggage {
-		w.Set("X-B3-Baggage-"+k, v)
+		w.Set("Tracer-Baggage-"+k, v)
 	}
 	return nil
 }
@@ -69,15 +69,15 @@ func textJoiner(carrier interface{}) (traceID, parentID, spanID uint64, baggage 
 	err = r.ForeachKey(func(key string, val string) error {
 		lower := strings.ToLower(key)
 		switch lower {
-		case "x-b3-traceid":
+		case "tracer-traceid":
 			traceID = idFromHex(val)
-		case "x-b3-spanid":
+		case "tracer-spanid":
 			spanID = idFromHex(val)
-		case "x-b3-parentspanid":
+		case "tracer-parentspanid":
 			parentID = idFromHex(val)
 		default:
-			if strings.HasPrefix(lower, "x-b3-baggage-") {
-				key = key[len("X-B3-Baggage-"):]
+			if strings.HasPrefix(lower, "tracer-baggage-") {
+				key = key[len("Tracer-Baggage-"):]
 				baggage[key] = val
 			}
 		}
