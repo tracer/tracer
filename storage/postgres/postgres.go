@@ -144,7 +144,7 @@ FROM spans
     ON spans.id = tags.span_id
 WHERE spans.trace_id = $1
 ORDER BY
-  lower(spans.time) ASC,
+  spans.time ASC,
   spans.id`
 	rows, err := tx.Query(selectTrace, int64(id))
 	if err != nil {
