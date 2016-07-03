@@ -112,7 +112,10 @@ ON CONFLICT (id) DO
 	}
 
 	for k, v := range sp.Tags {
-		vs := fmt.Sprintf("%v", v) // XXX
+		vs := ""
+		if v != nil {
+			vs = fmt.Sprintf("%v", v)
+		}
 		_, err = tx.Exec(insertTag,
 			int64(sp.SpanID), int64(sp.TraceID), k, vs)
 		if err != nil {
@@ -120,7 +123,10 @@ ON CONFLICT (id) DO
 		}
 	}
 	for _, l := range sp.Logs {
-		v := fmt.Sprintf("%v", l.Payload) // XXX
+		v := ""
+		if l.Payload != nil {
+			v = fmt.Sprintf("%v", l.Payload)
+		}
 		_, err = tx.Exec(insertLog,
 			int64(sp.SpanID), int64(sp.TraceID), l.Event, v, l.Timestamp)
 		if err != nil {
