@@ -14,6 +14,9 @@ import (
 	"github.com/opentracing/opentracing-go"
 )
 
+var _ tracer.Queryer = (*Storage)(nil)
+var _ tracer.Storer = (*Storage)(nil)
+
 // timeRange represents a PostgreSQL tstzrange. Caveat: it only
 // supports inclusive ranges.
 type timeRange struct {
