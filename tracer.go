@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"io"
 	"log"
+	"reflect"
 	"strings"
 	"time"
 
@@ -109,6 +110,27 @@ func binaryJoiner(carrier interface{}) (traceID, parentID, spanID uint64, baggag
 	return traceID, parentID, spanID, nil, err
 }
 
+func valueType(v interface{}) (string, bool) {
+	if v == nil {
+		return "", true
+	}
+	rv := reflect.ValueOf(v)
+	if !rv.IsValid() {
+		return "", false
+	}
+	switch rv.Type().Kind() {
+	case reflect.Bool:
+		return "boolean", true
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32,
+		reflect.Int64, reflect.Uint, reflect.Uint8, reflect.Uint16,
+		reflect.Uint32, reflect.Uint64, reflect.Float32, reflect.Float64:
+		return "number", true
+	case reflect.String:
+		return "string", true
+	}
+	return "", false
+}
+
 type RawTrace struct {
 	TraceID uint64
 	Spans   []RawSpan
@@ -139,6 +161,10 @@ func (sp *Span) SetOperationName(name string) opentracing.Span {
 }
 
 func (sp *Span) SetTag(key string, value interface{}) opentracing.Span {
+	if _, ok := valueType(value); !ok {
+		log.Printf("unsupported tag value type for tag %q: %T", key, value)
+		return sp
+	}
 	if sp.Tags == nil {
 		sp.Tags = map[string]interface{}{}
 	}
@@ -177,6 +203,10 @@ func (sp *Span) LogEventWithPayload(event string, payload interface{}) {
 }
 
 func (sp *Span) Log(data opentracing.LogData) {
+	if _, ok := valueType(data.Payload); !ok {
+		log.Printf("unsupported log payload type for event %q: %T", data.Event, data.Payload)
+		return
+	}
 	if data.Timestamp.IsZero() {
 		data.Timestamp = time.Now()
 	}

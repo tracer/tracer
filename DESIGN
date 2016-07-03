@@ -158,3 +158,23 @@ Tracer.
 
   We will use the two spans model. More generically, this is the model
   where spans aren't shared across service boundaries.
+
+* Tag value types
+  The OpenTracing spec is somewhat vague on what types have to be
+  supported, but suggests that strings and numeric types should be
+  supported.
+
+  The Go client API will accept all integer and float types, as well
+  as strings. In the backend, however, ints will be stored as floats.
+  For 64-bit integers that means that not the full resolution will be
+  available.
+
+  This is done mainly to simplify storage, and because one major
+  frontend – the browser – will not support 64 bit integers anyway,
+  due to JavaScript. Additionally, it will simplify a possible future
+  query language, as numeric comparisons will always be between two
+  floats, so no implicit or explicit type conversions will be
+  necessary.
+
+  Values of all other types will be dropped, as is suggested by the
+  OpenTracing spec.
