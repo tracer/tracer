@@ -59,6 +59,18 @@ func New(db *sql.DB) *Storage {
 }
 
 func (st *Storage) Store(sp tracer.RawSpan) (err error) {
+	const upsertSpan = `
+INSERT INTO spans (id, trace_id, time, operation_name)
+VALUES ($1, $2, $3, $4)
+ON CONFLICT (id) DO
+  UPDATE SET
+    time = $3,
+    operation_name = $4`
+	const insertTag = `INSERT INTO tags (span_id, trace_id, key, value) VALUES ($1, $2, $3, $4)`
+	const insertLog = `INSERT INTO tags (span_id, trace_id, key, value, time) VALUES ($1, $2, $3, $4, $5)`
+	const insertParentRelation = `INSERT INTO relations (span1_id, span2_id, kind) VALUES ($1, $2, 'parent')`
+	const insertParentSpan = `INSERT INTO spans (id, trace_id, time, operation_name) VALUES ($1, $2, $3, '') ON CONFLICT (id) DO NOTHING`
+
 	tx, err := st.db.Begin()
 	if err != nil {
 		return err
@@ -71,25 +83,25 @@ func (st *Storage) Store(sp tracer.RawSpan) (err error) {
 		err = tx.Commit()
 	}()
 
-	_, err = tx.Exec(`INSERT INTO spans (id, trace_id, time, operation_name) VALUES ($1, $2, $3, $4) ON CONFLICT (id) DO UPDATE SET time = $3, operation_name = $4`,
+	_, err = tx.Exec(upsertSpan,
 		int64(sp.SpanID), int64(sp.TraceID), timeRange{sp.StartTime, sp.FinishTime}, sp.OperationName)
 	if err != nil {
 		return err
 	}
 
 	if sp.ParentID != 0 {
-		_, err = tx.Exec(`INSERT INTO spans (id, trace_id, time, operation_name) VALUES ($1, $2, $3, '') ON CONFLICT (id) DO NOTHING`,
+		_, err = tx.Exec(insertParentSpan,
 			int64(sp.ParentID), int64(sp.TraceID), timeRange{time.Time{}, time.Time{}})
 		if err != nil {
 			return err
 		}
-		_, err = tx.Exec(`INSERT INTO spans (id, trace_id, time, operation_name) VALUES ($1, $2, $3, $4) ON CONFLICT (id) DO NOTHING`,
-			int64(sp.TraceID), int64(sp.TraceID), timeRange{sp.StartTime, sp.FinishTime}, sp.OperationName)
+		_, err = tx.Exec(insertParentSpan,
+			int64(sp.TraceID), int64(sp.TraceID), timeRange{sp.StartTime, sp.FinishTime})
 		if err != nil {
 			return err
 		}
 
-		_, err = tx.Exec(`INSERT INTO relations (span1_id, span2_id, kind) VALUES ($1, $2, 'parent')`,
+		_, err = tx.Exec(insertParentRelation,
 			int64(sp.ParentID), int64(sp.SpanID))
 		if err != nil {
 			return err
@@ -98,7 +110,7 @@ func (st *Storage) Store(sp tracer.RawSpan) (err error) {
 
 	for k, v := range sp.Tags {
 		vs := fmt.Sprintf("%v", v) // XXX
-		_, err = tx.Exec(`INSERT INTO tags (span_id, trace_id, key, value) VALUES ($1, $2, $3, $4)`,
+		_, err = tx.Exec(insertTag,
 			int64(sp.SpanID), int64(sp.TraceID), k, vs)
 		if err != nil {
 			return err
@@ -106,7 +118,7 @@ func (st *Storage) Store(sp tracer.RawSpan) (err error) {
 	}
 	for _, l := range sp.Logs {
 		v := fmt.Sprintf("%v", l.Payload) // XXX
-		_, err = tx.Exec(`INSERT INTO tags (span_id, trace_id, key, value, time) VALUES ($1, $2, $3, $4, $5)`,
+		_, err = tx.Exec(insertLog,
 			int64(sp.SpanID), int64(sp.TraceID), l.Event, v, l.Timestamp)
 		if err != nil {
 			return err
@@ -125,8 +137,16 @@ func (st *Storage) TraceWithID(id uint64) (tracer.RawTrace, error) {
 }
 
 func (st *Storage) traceWithID(tx *sql.Tx, id uint64) (tracer.RawTrace, error) {
-	rows, err := tx.Query(`SELECT spans.id, spans.trace_id, spans.time, spans.operation_name, tags.key, tags.value, tags.time FROM spans LEFT JOIN tags ON spans.id = tags.span_id WHERE spans.trace_id = $1 ORDER BY lower(spans.time) ASC, spans.id`,
-		int64(id))
+	const selectTrace = `
+SELECT spans.id, spans.trace_id, spans.time, spans.operation_name, tags.key, tags.value, tags.time
+FROM spans
+  LEFT JOIN tags
+    ON spans.id = tags.span_id
+WHERE spans.trace_id = $1
+ORDER BY
+  lower(spans.time) ASC,
+  spans.id`
+	rows, err := tx.Query(selectTrace, int64(id))
 	if err != nil {
 		return tracer.RawTrace{}, err
 	}
@@ -206,8 +226,14 @@ func (st *Storage) SpanWithID(id uint64) (tracer.RawSpan, error) {
 }
 
 func (st *Storage) spanWithID(tx *sql.Tx, id uint64) (tracer.RawSpan, error) {
-	rows, err := tx.Query(`SELECT spans.id, spans.trace_id, spans.time, spans.time, spans.operation_name, tags.key, tags.value, tags.time FROM spans LEFT JOIN tags ON spans.id = tags.span_id WHERE id = $1 LIMIT 1`,
-		int64(id))
+	const selectSpan = `
+SELECT spans.id, spans.trace_id, spans.time, spans.time, spans.operation_name, tags.key, tags.value, tags.time
+FROM spans
+  LEFT JOIN tags
+    ON spans.id = tags.span_id
+WHERE id = $1
+LIMIT 1`
+	rows, err := tx.Query(selectSpan, int64(id))
 	if err != nil {
 		return tracer.RawSpan{}, err
 	}
@@ -265,7 +291,23 @@ func (st *Storage) QueryTraces(q tracer.Query) ([]tracer.RawTrace, error) {
 		conds = append(conds, or)
 	}
 
-	query := st.db.Rebind("SELECT spans.trace_id FROM spans WHERE EXISTS (SELECT 1 FROM tags WHERE tags.trace_id = spans.trace_id AND " + strings.Join(conds, " AND ") + ") AND ? @> spans.time AND spans.id = spans.trace_id ORDER BY spans.time ASC, spans.trace_id")
+	query := st.db.Rebind(`
+SELECT spans.trace_id
+FROM spans
+WHERE
+  EXISTS (
+    SELECT 1
+    FROM tags
+    WHERE
+      tags.trace_id = spans.trace_id AND
+      ` + strings.Join(conds, " AND ") + `
+  ) AND
+  ? @> spans.time AND
+  spans.id = spans.trace_id
+ORDER BY
+  spans.time ASC,
+  spans.trace_id
+`)
 	args := make([]interface{}, 0, len(andArgs)+len(orArgs))
 	args = append(args, andArgs...)
 	args = append(args, orArgs...)
