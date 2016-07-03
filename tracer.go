@@ -332,6 +332,8 @@ type Query struct {
 	StartTime     time.Time
 	FinishTime    time.Time
 	OperationName string
+	MinDuration   time.Duration
+	MaxDuration   time.Duration
 	AndTags       []QueryTag
 	OrTags        []QueryTag
 }

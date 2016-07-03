@@ -270,6 +270,9 @@ func (st *Storage) QueryTraces(q tracer.Query) ([]tracer.RawTrace, error) {
 	if q.FinishTime.IsZero() {
 		q.FinishTime = time.Now()
 	}
+	if q.MaxDuration == 0 {
+		q.MaxDuration = 1<<31 - 1
+	}
 	for _, tag := range q.AndTags {
 		if tag.CheckValue {
 			andConds = append(andConds, `(tags.key = ? AND tags.value = ?)`)
@@ -313,6 +316,8 @@ WHERE
   ) AND
   ? @> spans.time AND
   (? = '' OR operation_name = ?) AND
+  DURATION(time) >= ? AND
+  DURATION(time) <= ? AND
   spans.id = spans.trace_id
 ORDER BY
   spans.time ASC,
@@ -323,6 +328,7 @@ ORDER BY
 	args = append(args, orArgs...)
 	args = append(args, timeRange{q.StartTime, q.FinishTime})
 	args = append(args, q.OperationName, q.OperationName)
+	args = append(args, int64(q.MinDuration), int64(q.MaxDuration))
 
 	var ids []int64
 	rows, err := st.db.Query(query, args...)

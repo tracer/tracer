@@ -1,5 +1,11 @@
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
+CREATE OR REPLACE FUNCTION duration(d tstzrange) RETURNS integer
+       AS 'SELECT (EXTRACT(epoch from upper($1) - lower($1)) * 1e9)::int'
+       LANGUAGE SQL
+       IMMUTABLE
+       RETURNS NULL ON NULL INPUT;
+
 CREATE TABLE spans (
        id bigint PRIMARY KEY,
        trace_id bigint,
