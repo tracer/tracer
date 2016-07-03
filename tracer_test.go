@@ -1,43 +1,35 @@
 package tracer
 
 import (
+	"bytes"
 	"testing"
-
-	"github.com/opentracing/opentracing-go"
 )
 
-type mockTextMapReader struct{}
-
-var _ opentracing.TextMapReader = mockTextMapReader{}
-
-func (mockTextMapReader) ForeachKey(fn func(string, string) error) error {
-	_ = fn("X-B3-TraceId", "0000000000000457")
-	_ = fn("X-B3-SpanId", "00000000000008ae")
-	_ = fn("X-B3-ParentSpanId", "0000000000000d05")
-	return nil
-}
-
-type mockTextMapWriter struct{}
-
-var _ opentracing.TextMapWriter = mockTextMapWriter{}
-
-func (mockTextMapWriter) Set(string, string) {}
-
-func BenchmarkJoinTextMap(b *testing.B) {
-	tr := &Tracer{}
-	for i := 0; i < b.N; i++ {
-		_, _ = tr.Join("", opentracing.TextMap, mockTextMapReader{})
-	}
-}
-
-func BenchmarkInjectTextMap(b *testing.B) {
+func TestBinary(t *testing.T) {
 	sp := &Span{
-		TraceID:  1111,
-		SpanID:   2222,
-		ParentID: 3333,
+		RawSpan: RawSpan{
+			SpanID:   1,
+			ParentID: 2,
+			TraceID:  3,
+			Baggage: map[string]string{
+				"k1": "v1",
+				"k2": "",
+			},
+		},
 	}
-	tr := &Tracer{}
-	for i := 0; i < b.N; i++ {
-		tr.Inject(sp, opentracing.TextMap, mockTextMapWriter{})
+	buf := &bytes.Buffer{}
+	if err := binaryInjecter(sp, buf); err != nil {
+		t.Fatal("unexpected error: ", err)
+	}
+	traceID, parentID, spanID, baggage, err := binaryJoiner(buf)
+	if err != nil {
+		t.Fatal("unexpected error: ", err)
+	}
+	if traceID != sp.TraceID || parentID != sp.ParentID || spanID != sp.SpanID ||
+		len(baggage) != 2 || baggage["k1"] != "v1" || baggage["k2"] != "" {
+
+		t.Errorf("got (%d, %d, %d, %v), want (%d, %d, %d, %v)",
+			traceID, parentID, spanID, baggage,
+			sp.TraceID, sp.ParentID, sp.SpanID, sp.Baggage)
 	}
 }

@@ -94,10 +94,19 @@ func binaryInjecter(sp *Span, carrier interface{}) error {
 	if !ok {
 		return opentracing.ErrInvalidCarrier
 	}
-	b := make([]byte, 24)
+	b := make([]byte, 8*4)
 	binary.BigEndian.PutUint64(b, sp.TraceID)
-	binary.BigEndian.PutUint64(b[8:], sp.TraceID)
-	binary.BigEndian.PutUint64(b[16:], sp.TraceID)
+	binary.BigEndian.PutUint64(b[8:], sp.SpanID)
+	binary.BigEndian.PutUint64(b[16:], sp.ParentID)
+	binary.BigEndian.PutUint64(b[24:], uint64(len(sp.Baggage)))
+	for k, v := range sp.Baggage {
+		b2 := make([]byte, 16+len(k)+len(v))
+		binary.BigEndian.PutUint64(b2, uint64(len(k)))
+		binary.BigEndian.PutUint64(b2[8:], uint64(len(v)))
+		copy(b2[16:], k)
+		copy(b2[16+len(k):], v)
+		b = append(b, b2...)
+	}
 	_, err := w.Write(b)
 	return err
 }
@@ -107,7 +116,7 @@ func binaryJoiner(carrier interface{}) (traceID, parentID, spanID uint64, baggag
 	if !ok {
 		return 0, 0, 0, nil, opentracing.ErrInvalidCarrier
 	}
-	b := make([]byte, 24)
+	b := make([]byte, 8*4)
 	if _, err := io.ReadFull(r, b); err != nil {
 		if err == io.ErrUnexpectedEOF {
 			return 0, 0, 0, nil, opentracing.ErrTraceNotFound
@@ -117,7 +126,36 @@ func binaryJoiner(carrier interface{}) (traceID, parentID, spanID uint64, baggag
 	traceID = binary.BigEndian.Uint64(b)
 	spanID = binary.BigEndian.Uint64(b[8:])
 	parentID = binary.BigEndian.Uint64(b[16:])
-	return traceID, parentID, spanID, nil, err
+
+	n := binary.BigEndian.Uint64(b[24:])
+
+	b = make([]byte, 8*2)
+	baggage = map[string]string{}
+	for i := uint64(0); i < n; i++ {
+		if _, err := io.ReadFull(r, b); err != nil {
+			if err == io.ErrUnexpectedEOF {
+				return 0, 0, 0, nil, opentracing.ErrTraceNotFound
+			}
+			return 0, 0, 0, nil, err
+		}
+
+		kl := int(binary.BigEndian.Uint64(b))
+		vl := int(binary.BigEndian.Uint64(b[8:]))
+		if kl <= 0 || vl < 0 {
+			return 0, 0, 0, nil, opentracing.ErrTraceNotFound
+		}
+
+		b2 := make([]byte, kl+vl)
+		if _, err := io.ReadFull(r, b2); err != nil {
+			if err == io.ErrUnexpectedEOF {
+				return 0, 0, 0, nil, opentracing.ErrTraceNotFound
+			}
+			return 0, 0, 0, nil, err
+		}
+		baggage[string(b2[:kl])] = string(b2[kl:])
+	}
+
+	return traceID, parentID, spanID, baggage, nil
 }
 
 func valueType(v interface{}) (string, bool) {
