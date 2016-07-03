@@ -15,6 +15,16 @@ import (
 	"github.com/opentracing/opentracing-go"
 )
 
+type Logger interface {
+	Printf(format string, values ...interface{})
+}
+
+type defaultLogger struct{}
+
+func (defaultLogger) Printf(format string, values ...interface{}) {
+	log.Printf(format, values...)
+}
+
 type Joiner func(carrier interface{}) (traceID, parentID, spanID uint64, baggage map[string]string, err error)
 type Injecter func(sp *Span, carrier interface{}) error
 
@@ -162,7 +172,7 @@ func (sp *Span) SetOperationName(name string) opentracing.Span {
 
 func (sp *Span) SetTag(key string, value interface{}) opentracing.Span {
 	if _, ok := valueType(value); !ok {
-		log.Printf("unsupported tag value type for tag %q: %T", key, value)
+		sp.tracer.Logger.Printf("unsupported tag value type for tag %q: %T", key, value)
 		return sp
 	}
 	if sp.Tags == nil {
@@ -185,7 +195,7 @@ func (sp *Span) FinishWithOptions(opts opentracing.FinishOptions) {
 		sp.Log(log)
 	}
 	if err := sp.tracer.storer.Store(sp.RawSpan); err != nil {
-		log.Println("error while storing tracing span:", err)
+		sp.tracer.Logger.Printf("error while storing tracing span: %s", err)
 	}
 }
 
@@ -204,7 +214,7 @@ func (sp *Span) LogEventWithPayload(event string, payload interface{}) {
 
 func (sp *Span) Log(data opentracing.LogData) {
 	if _, ok := valueType(data.Payload); !ok {
-		log.Printf("unsupported log payload type for event %q: %T", data.Event, data.Payload)
+		sp.tracer.Logger.Printf("unsupported log payload type for event %q: %T", data.Event, data.Payload)
 		return
 	}
 	if data.Timestamp.IsZero() {
@@ -236,12 +246,18 @@ func (sp *Span) Tracer() opentracing.Tracer {
 
 // Tracer is an implementation of the Open Tracing Tracer interface.
 type Tracer struct {
+	Logger Logger
+
 	storer      Storer
 	idGenerator IDGenerator
 }
 
 func NewTracer(storer Storer, idGenerator IDGenerator) *Tracer {
-	return &Tracer{storer, idGenerator}
+	return &Tracer{
+		Logger:      defaultLogger{},
+		storer:      storer,
+		idGenerator: idGenerator,
+	}
 }
 
 func (tr *Tracer) StartSpan(operationName string) opentracing.Span {
