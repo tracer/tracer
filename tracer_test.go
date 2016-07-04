@@ -25,15 +25,15 @@ func TestText(t *testing.T) {
 	if err := textInjecter(sp, carrier); err != nil {
 		t.Fatal("unexpected error: ", err)
 	}
-	traceID, parentID, spanID, flags, baggage, err := textJoiner(carrier)
+	context, err := textJoiner(carrier)
 	if err != nil {
 		t.Fatal("unexpected error: ", err)
 	}
-	if traceID != sp.TraceID || parentID != sp.ParentID || spanID != sp.SpanID || flags != sp.Flags ||
-		len(baggage) != 2 || baggage["k1"] != "v1" || baggage["k2"] != "" {
+	if context.TraceID != sp.TraceID || context.ParentID != sp.ParentID || context.SpanID != sp.SpanID || context.Flags != sp.Flags ||
+		len(context.Baggage) != 2 || context.Baggage["k1"] != "v1" || context.Baggage["k2"] != "" {
 
 		t.Errorf("got (%d, %d, %d, %d, %v), want (%d, %d, %d, %d, %v)",
-			traceID, parentID, spanID, flags, baggage,
+			context.TraceID, context.ParentID, context.SpanID, context.Flags, context.Baggage,
 			sp.TraceID, sp.ParentID, sp.SpanID, sp.Flags, sp.Baggage)
 	}
 }
@@ -55,15 +55,15 @@ func TestBinary(t *testing.T) {
 	if err := binaryInjecter(sp, buf); err != nil {
 		t.Fatal("unexpected error: ", err)
 	}
-	traceID, parentID, spanID, flags, baggage, err := binaryJoiner(buf)
+	context, err := binaryJoiner(buf)
 	if err != nil {
 		t.Fatal("unexpected error: ", err)
 	}
-	if traceID != sp.TraceID || parentID != sp.ParentID || spanID != sp.SpanID || flags != sp.Flags ||
-		len(baggage) != 2 || baggage["k1"] != "v1" || baggage["k2"] != "" {
+	if context.TraceID != sp.TraceID || context.ParentID != sp.ParentID || context.SpanID != sp.SpanID || context.Flags != sp.Flags ||
+		len(context.Baggage) != 2 || context.Baggage["k1"] != "v1" || context.Baggage["k2"] != "" {
 
 		t.Errorf("got (%d, %d, %d, %d, %v), want (%d, %d, %d, %d, %v)",
-			traceID, parentID, spanID, flags, baggage,
+			context.TraceID, context.ParentID, context.SpanID, context.Flags, context.Baggage,
 			sp.TraceID, sp.ParentID, sp.SpanID, sp.Flags, sp.Baggage)
 	}
 }

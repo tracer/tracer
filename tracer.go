@@ -32,7 +32,15 @@ func (defaultLogger) Printf(format string, values ...interface{}) {
 	log.Printf(format, values...)
 }
 
-type Joiner func(carrier interface{}) (traceID, parentID, spanID uint64, flags uint64, baggage map[string]string, err error)
+type Context struct {
+	TraceID  uint64
+	ParentID uint64
+	SpanID   uint64
+	Flags    uint64
+	Baggage  map[string]string
+}
+
+type Joiner func(carrier interface{}) (Context, error)
 type Injecter func(sp *Span, carrier interface{}) error
 
 var joiners = map[interface{}]Joiner{
@@ -68,35 +76,35 @@ func textInjecter(sp *Span, carrier interface{}) error {
 	return nil
 }
 
-func textJoiner(carrier interface{}) (traceID, parentID, spanID uint64, flags uint64, baggage map[string]string, err error) {
+func textJoiner(carrier interface{}) (Context, error) {
 	r, ok := carrier.(opentracing.TextMapReader)
 	if !ok {
-		return 0, 0, 0, 0, nil, opentracing.ErrInvalidCarrier
+		return Context{}, opentracing.ErrInvalidCarrier
 	}
-	baggage = map[string]string{}
-	err = r.ForeachKey(func(key string, val string) error {
+	ctx := Context{Baggage: map[string]string{}}
+	err := r.ForeachKey(func(key string, val string) error {
 		lower := strings.ToLower(key)
 		switch lower {
 		case "tracer-traceid":
-			traceID = idFromHex(val)
+			ctx.TraceID = idFromHex(val)
 		case "tracer-spanid":
-			spanID = idFromHex(val)
+			ctx.SpanID = idFromHex(val)
 		case "tracer-parentspanid":
-			parentID = idFromHex(val)
+			ctx.ParentID = idFromHex(val)
 		case "tracer-flags":
-			flags, _ = strconv.ParseUint(val, 10, 64)
+			ctx.Flags, _ = strconv.ParseUint(val, 10, 64)
 		default:
 			if strings.HasPrefix(lower, "tracer-baggage-") {
 				key = key[len("Tracer-Baggage-"):]
-				baggage[key] = val
+				ctx.Baggage[key] = val
 			}
 		}
 		return nil
 	})
-	if traceID == 0 {
-		return 0, 0, 0, 0, nil, opentracing.ErrTraceNotFound
+	if ctx.TraceID == 0 {
+		return Context{}, opentracing.ErrTraceNotFound
 	}
-	return traceID, parentID, spanID, flags, baggage, err
+	return ctx, err
 }
 
 func binaryInjecter(sp *Span, carrier interface{}) error {
@@ -122,51 +130,51 @@ func binaryInjecter(sp *Span, carrier interface{}) error {
 	return err
 }
 
-func binaryJoiner(carrier interface{}) (traceID, parentID, spanID uint64, flags uint64, baggage map[string]string, err error) {
+func binaryJoiner(carrier interface{}) (Context, error) {
 	r, ok := carrier.(io.Reader)
 	if !ok {
-		return 0, 0, 0, 0, nil, opentracing.ErrInvalidCarrier
+		return Context{}, opentracing.ErrInvalidCarrier
 	}
+	ctx := Context{Baggage: map[string]string{}}
 	b := make([]byte, 8*5)
 	if _, err := io.ReadFull(r, b); err != nil {
 		if err == io.ErrUnexpectedEOF {
-			return 0, 0, 0, 0, nil, opentracing.ErrTraceNotFound
+			return Context{}, opentracing.ErrTraceNotFound
 		}
-		return 0, 0, 0, 0, nil, err
+		return Context{}, err
 	}
-	traceID = binary.BigEndian.Uint64(b)
-	spanID = binary.BigEndian.Uint64(b[8:])
-	parentID = binary.BigEndian.Uint64(b[16:])
-	flags = binary.BigEndian.Uint64(b[24:])
+	ctx.TraceID = binary.BigEndian.Uint64(b)
+	ctx.SpanID = binary.BigEndian.Uint64(b[8:])
+	ctx.ParentID = binary.BigEndian.Uint64(b[16:])
+	ctx.Flags = binary.BigEndian.Uint64(b[24:])
 	n := binary.BigEndian.Uint64(b[32:])
 
 	b = make([]byte, 8*2)
-	baggage = map[string]string{}
 	for i := uint64(0); i < n; i++ {
 		if _, err := io.ReadFull(r, b); err != nil {
 			if err == io.ErrUnexpectedEOF {
-				return 0, 0, 0, 0, nil, opentracing.ErrTraceNotFound
+				return Context{}, opentracing.ErrTraceNotFound
 			}
-			return 0, 0, 0, 0, nil, err
+			return Context{}, err
 		}
 
 		kl := int(binary.BigEndian.Uint64(b))
 		vl := int(binary.BigEndian.Uint64(b[8:]))
 		if kl <= 0 || vl < 0 {
-			return 0, 0, 0, 0, nil, opentracing.ErrTraceNotFound
+			return Context{}, opentracing.ErrTraceNotFound
 		}
 
 		b2 := make([]byte, kl+vl)
 		if _, err := io.ReadFull(r, b2); err != nil {
 			if err == io.ErrUnexpectedEOF {
-				return 0, 0, 0, 0, nil, opentracing.ErrTraceNotFound
+				return Context{}, opentracing.ErrTraceNotFound
 			}
-			return 0, 0, 0, 0, nil, err
+			return Context{}, err
 		}
-		baggage[string(b2[:kl])] = string(b2[kl:])
+		ctx.Baggage[string(b2[:kl])] = string(b2[kl:])
 	}
 
-	return traceID, parentID, spanID, flags, baggage, nil
+	return ctx, nil
 }
 
 func valueType(v interface{}) (string, bool) {
@@ -402,7 +410,7 @@ func (tr *Tracer) Join(operationName string, format interface{}, carrier interfa
 	if !ok {
 		return nil, opentracing.ErrUnsupportedFormat
 	}
-	traceID, parentID, spanID, flags, baggage, err := joiner(carrier)
+	context, err := joiner(carrier)
 	if err != nil {
 		return nil, err
 	}
@@ -410,11 +418,11 @@ func (tr *Tracer) Join(operationName string, format interface{}, carrier interfa
 	return &Span{
 		tracer: tr,
 		RawSpan: RawSpan{
-			TraceID:  traceID,
-			SpanID:   spanID,
-			ParentID: parentID,
-			Baggage:  baggage,
-			Flags:    flags,
+			TraceID:  context.TraceID,
+			SpanID:   context.SpanID,
+			ParentID: context.ParentID,
+			Baggage:  context.Baggage,
+			Flags:    context.Flags,
 		},
 	}, nil
 }
