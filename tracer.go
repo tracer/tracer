@@ -57,7 +57,7 @@ func textInjecter(sp *Span, carrier interface{}) error {
 	w.Set("Tracer-SpanId", idToHex(sp.SpanID))
 	w.Set("Tracer-ParentSpanId", idToHex(sp.ParentID))
 	sampled := "0"
-	if sp.sampled {
+	if sp.Sampled {
 		sampled = "1"
 	}
 	w.Set("Tracer-Sampled", sampled)
@@ -108,7 +108,7 @@ func binaryInjecter(sp *Span, carrier interface{}) error {
 	binary.BigEndian.PutUint64(b[8:], sp.SpanID)
 	binary.BigEndian.PutUint64(b[16:], sp.ParentID)
 	binary.BigEndian.PutUint64(b[24:], uint64(len(sp.Baggage)))
-	if sp.sampled {
+	if sp.Sampled {
 		b[32] = 1
 	}
 	for k, v := range sp.Baggage {
@@ -198,8 +198,7 @@ type RawTrace struct {
 
 // Span is an implementation of the Open Tracing Span interface.
 type Span struct {
-	tracer  *Tracer
-	sampled bool
+	tracer *Tracer
 	RawSpan
 }
 
@@ -210,6 +209,7 @@ type RawSpan struct {
 	OperationName string
 	StartTime     time.Time
 	FinishTime    time.Time
+	Sampled       bool
 
 	Tags    map[string]interface{}
 	Baggage map[string]string
@@ -222,7 +222,7 @@ func (sp *Span) SetOperationName(name string) opentracing.Span {
 }
 
 func (sp *Span) SetTag(key string, value interface{}) opentracing.Span {
-	if !sp.sampled {
+	if !sp.Sampled {
 		return sp
 	}
 	if _, ok := valueType(value); !ok {
@@ -237,14 +237,14 @@ func (sp *Span) SetTag(key string, value interface{}) opentracing.Span {
 }
 
 func (sp *Span) Finish() {
-	if !sp.sampled {
+	if !sp.Sampled {
 		return
 	}
 	sp.FinishWithOptions(opentracing.FinishOptions{})
 }
 
 func (sp *Span) FinishWithOptions(opts opentracing.FinishOptions) {
-	if !sp.sampled {
+	if !sp.Sampled {
 		return
 	}
 	if opts.FinishTime.IsZero() {
@@ -260,7 +260,7 @@ func (sp *Span) FinishWithOptions(opts opentracing.FinishOptions) {
 }
 
 func (sp *Span) LogEvent(event string) {
-	if !sp.sampled {
+	if !sp.Sampled {
 		return
 	}
 	sp.Log(opentracing.LogData{
@@ -269,7 +269,7 @@ func (sp *Span) LogEvent(event string) {
 }
 
 func (sp *Span) LogEventWithPayload(event string, payload interface{}) {
-	if !sp.sampled {
+	if !sp.Sampled {
 		return
 	}
 	sp.Log(opentracing.LogData{
@@ -279,7 +279,7 @@ func (sp *Span) LogEventWithPayload(event string, payload interface{}) {
 }
 
 func (sp *Span) Log(data opentracing.LogData) {
-	if !sp.sampled {
+	if !sp.Sampled {
 		return
 	}
 	if _, ok := valueType(data.Payload); !ok {
@@ -293,7 +293,7 @@ func (sp *Span) Log(data opentracing.LogData) {
 }
 
 func (sp *Span) SetBaggageItem(key, value string) opentracing.Span {
-	if !sp.sampled {
+	if !sp.Sampled {
 		return sp
 	}
 	sp.Baggage[key] = value
@@ -362,9 +362,9 @@ func (tr *Tracer) StartSpanWithOptions(opts opentracing.StartSpanOptions) opentr
 		}
 		sp.ParentID = parent.SpanID
 		sp.TraceID = parent.TraceID
-		sp.sampled = parent.sampled
+		sp.Sampled = parent.Sampled
 	} else {
-		sp.sampled = tr.Sampler.Sample(id)
+		sp.Sampled = tr.Sampler.Sample(id)
 	}
 	return sp
 }
@@ -403,13 +403,13 @@ func (tr *Tracer) Join(operationName string, format interface{}, carrier interfa
 	}
 
 	return &Span{
-		tracer:  tr,
-		sampled: sampled,
+		tracer: tr,
 		RawSpan: RawSpan{
 			TraceID:  traceID,
 			SpanID:   spanID,
 			ParentID: parentID,
 			Baggage:  baggage,
+			Sampled:  sampled,
 		},
 	}, nil
 }
