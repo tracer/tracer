@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/opentracing/opentracing-go"
-	"golang.org/x/net/context"
 	"golang.org/x/time/rate"
 )
 
@@ -28,7 +27,7 @@ func (defaultLogger) Printf(format string, values ...interface{}) {
 	log.Printf(format, values...)
 }
 
-type Joiner func(carrier interface{}) (traceID, parentID, spanID uint64, baggage map[string]string, err error)
+type Joiner func(carrier interface{}) (traceID, parentID, spanID uint64, baggage map[string]string, sampled bool, err error)
 type Injecter func(sp *Span, carrier interface{}) error
 
 var joiners = map[interface{}]Joiner{
@@ -57,16 +56,21 @@ func textInjecter(sp *Span, carrier interface{}) error {
 	w.Set("Tracer-TraceId", idToHex(sp.TraceID))
 	w.Set("Tracer-SpanId", idToHex(sp.SpanID))
 	w.Set("Tracer-ParentSpanId", idToHex(sp.ParentID))
+	sampled := "0"
+	if sp.sampled {
+		sampled = "1"
+	}
+	w.Set("Tracer-Sampled", sampled)
 	for k, v := range sp.Baggage {
 		w.Set("Tracer-Baggage-"+k, v)
 	}
 	return nil
 }
 
-func textJoiner(carrier interface{}) (traceID, parentID, spanID uint64, baggage map[string]string, err error) {
+func textJoiner(carrier interface{}) (traceID, parentID, spanID uint64, baggage map[string]string, sampled bool, err error) {
 	r, ok := carrier.(opentracing.TextMapReader)
 	if !ok {
-		return 0, 0, 0, nil, opentracing.ErrInvalidCarrier
+		return 0, 0, 0, nil, false, opentracing.ErrInvalidCarrier
 	}
 	baggage = map[string]string{}
 	err = r.ForeachKey(func(key string, val string) error {
@@ -78,6 +82,8 @@ func textJoiner(carrier interface{}) (traceID, parentID, spanID uint64, baggage 
 			spanID = idFromHex(val)
 		case "tracer-parentspanid":
 			parentID = idFromHex(val)
+		case "tracer-sampled":
+			sampled = val != "0"
 		default:
 			if strings.HasPrefix(lower, "tracer-baggage-") {
 				key = key[len("Tracer-Baggage-"):]
@@ -87,9 +93,9 @@ func textJoiner(carrier interface{}) (traceID, parentID, spanID uint64, baggage 
 		return nil
 	})
 	if traceID == 0 {
-		return 0, 0, 0, nil, opentracing.ErrTraceNotFound
+		return 0, 0, 0, nil, false, opentracing.ErrTraceNotFound
 	}
-	return traceID, parentID, spanID, baggage, err
+	return traceID, parentID, spanID, baggage, sampled, err
 }
 
 func binaryInjecter(sp *Span, carrier interface{}) error {
@@ -97,11 +103,14 @@ func binaryInjecter(sp *Span, carrier interface{}) error {
 	if !ok {
 		return opentracing.ErrInvalidCarrier
 	}
-	b := make([]byte, 8*4)
+	b := make([]byte, 8*4+1)
 	binary.BigEndian.PutUint64(b, sp.TraceID)
 	binary.BigEndian.PutUint64(b[8:], sp.SpanID)
 	binary.BigEndian.PutUint64(b[16:], sp.ParentID)
 	binary.BigEndian.PutUint64(b[24:], uint64(len(sp.Baggage)))
+	if sp.sampled {
+		b[32] = 1
+	}
 	for k, v := range sp.Baggage {
 		b2 := make([]byte, 16+len(k)+len(v))
 		binary.BigEndian.PutUint64(b2, uint64(len(k)))
@@ -114,51 +123,51 @@ func binaryInjecter(sp *Span, carrier interface{}) error {
 	return err
 }
 
-func binaryJoiner(carrier interface{}) (traceID, parentID, spanID uint64, baggage map[string]string, err error) {
+func binaryJoiner(carrier interface{}) (traceID, parentID, spanID uint64, baggage map[string]string, sampled bool, err error) {
 	r, ok := carrier.(io.Reader)
 	if !ok {
-		return 0, 0, 0, nil, opentracing.ErrInvalidCarrier
+		return 0, 0, 0, nil, false, opentracing.ErrInvalidCarrier
 	}
-	b := make([]byte, 8*4)
+	b := make([]byte, 8*4+1)
 	if _, err := io.ReadFull(r, b); err != nil {
 		if err == io.ErrUnexpectedEOF {
-			return 0, 0, 0, nil, opentracing.ErrTraceNotFound
+			return 0, 0, 0, nil, false, opentracing.ErrTraceNotFound
 		}
-		return 0, 0, 0, nil, err
+		return 0, 0, 0, nil, false, err
 	}
 	traceID = binary.BigEndian.Uint64(b)
 	spanID = binary.BigEndian.Uint64(b[8:])
 	parentID = binary.BigEndian.Uint64(b[16:])
-
 	n := binary.BigEndian.Uint64(b[24:])
+	sampled = b[32] == 1
 
 	b = make([]byte, 8*2)
 	baggage = map[string]string{}
 	for i := uint64(0); i < n; i++ {
 		if _, err := io.ReadFull(r, b); err != nil {
 			if err == io.ErrUnexpectedEOF {
-				return 0, 0, 0, nil, opentracing.ErrTraceNotFound
+				return 0, 0, 0, nil, false, opentracing.ErrTraceNotFound
 			}
-			return 0, 0, 0, nil, err
+			return 0, 0, 0, nil, false, err
 		}
 
 		kl := int(binary.BigEndian.Uint64(b))
 		vl := int(binary.BigEndian.Uint64(b[8:]))
 		if kl <= 0 || vl < 0 {
-			return 0, 0, 0, nil, opentracing.ErrTraceNotFound
+			return 0, 0, 0, nil, false, opentracing.ErrTraceNotFound
 		}
 
 		b2 := make([]byte, kl+vl)
 		if _, err := io.ReadFull(r, b2); err != nil {
 			if err == io.ErrUnexpectedEOF {
-				return 0, 0, 0, nil, opentracing.ErrTraceNotFound
+				return 0, 0, 0, nil, false, opentracing.ErrTraceNotFound
 			}
-			return 0, 0, 0, nil, err
+			return 0, 0, 0, nil, false, err
 		}
 		baggage[string(b2[:kl])] = string(b2[kl:])
 	}
 
-	return traceID, parentID, spanID, baggage, nil
+	return traceID, parentID, spanID, baggage, sampled, nil
 }
 
 func valueType(v interface{}) (string, bool) {
@@ -189,7 +198,8 @@ type RawTrace struct {
 
 // Span is an implementation of the Open Tracing Span interface.
 type Span struct {
-	tracer *Tracer
+	tracer  *Tracer
+	sampled bool
 	RawSpan
 }
 
@@ -212,6 +222,9 @@ func (sp *Span) SetOperationName(name string) opentracing.Span {
 }
 
 func (sp *Span) SetTag(key string, value interface{}) opentracing.Span {
+	if !sp.sampled {
+		return sp
+	}
 	if _, ok := valueType(value); !ok {
 		sp.tracer.Logger.Printf("unsupported tag value type for tag %q: %T", key, value)
 		return sp
@@ -224,10 +237,16 @@ func (sp *Span) SetTag(key string, value interface{}) opentracing.Span {
 }
 
 func (sp *Span) Finish() {
+	if !sp.sampled {
+		return
+	}
 	sp.FinishWithOptions(opentracing.FinishOptions{})
 }
 
 func (sp *Span) FinishWithOptions(opts opentracing.FinishOptions) {
+	if !sp.sampled {
+		return
+	}
 	if opts.FinishTime.IsZero() {
 		opts.FinishTime = time.Now()
 	}
@@ -241,12 +260,18 @@ func (sp *Span) FinishWithOptions(opts opentracing.FinishOptions) {
 }
 
 func (sp *Span) LogEvent(event string) {
+	if !sp.sampled {
+		return
+	}
 	sp.Log(opentracing.LogData{
 		Event: event,
 	})
 }
 
 func (sp *Span) LogEventWithPayload(event string, payload interface{}) {
+	if !sp.sampled {
+		return
+	}
 	sp.Log(opentracing.LogData{
 		Event:   event,
 		Payload: payload,
@@ -254,6 +279,9 @@ func (sp *Span) LogEventWithPayload(event string, payload interface{}) {
 }
 
 func (sp *Span) Log(data opentracing.LogData) {
+	if !sp.sampled {
+		return
+	}
 	if _, ok := valueType(data.Payload); !ok {
 		sp.tracer.Logger.Printf("unsupported log payload type for event %q: %T", data.Event, data.Payload)
 		return
@@ -265,6 +293,9 @@ func (sp *Span) Log(data opentracing.LogData) {
 }
 
 func (sp *Span) SetBaggageItem(key, value string) opentracing.Span {
+	if !sp.sampled {
+		return sp
+	}
 	sp.Baggage[key] = value
 	return sp
 }
@@ -287,7 +318,8 @@ func (sp *Span) Tracer() opentracing.Tracer {
 
 // Tracer is an implementation of the Open Tracing Tracer interface.
 type Tracer struct {
-	Logger Logger
+	Logger  Logger
+	Sampler Sampler
 
 	storer      Storer
 	idGenerator IDGenerator
@@ -296,6 +328,7 @@ type Tracer struct {
 func NewTracer(storer Storer, idGenerator IDGenerator) *Tracer {
 	return &Tracer{
 		Logger:      defaultLogger{},
+		Sampler:     NewConstSampler(true),
 		storer:      storer,
 		idGenerator: idGenerator,
 	}
@@ -311,29 +344,27 @@ func (tr *Tracer) StartSpanWithOptions(opts opentracing.StartSpanOptions) opentr
 	if opts.StartTime.IsZero() {
 		opts.StartTime = time.Now()
 	}
-	var traceID uint64
-	var parentID uint64
-	if opts.Parent != nil {
-		parent, ok := opts.Parent.(*Span)
-		if !ok {
-			panic("parent span must be of type *Span")
-		}
-		parentID = parent.SpanID
-		traceID = parent.TraceID
-	}
+
 	id := tr.idGenerator.GenerateID()
-	if traceID == 0 {
-		traceID = id
-	}
 	sp := &Span{
 		tracer: tr,
 		RawSpan: RawSpan{
 			OperationName: opts.OperationName,
 			SpanID:        id,
-			ParentID:      parentID,
-			TraceID:       traceID,
+			TraceID:       id,
 			StartTime:     opts.StartTime,
 		},
+	}
+	if opts.Parent != nil {
+		parent, ok := opts.Parent.(*Span)
+		if !ok {
+			panic("parent span must be of type *Span")
+		}
+		sp.ParentID = parent.SpanID
+		sp.TraceID = parent.TraceID
+		sp.sampled = parent.sampled
+	} else {
+		sp.sampled = tr.Sampler.Sample(id)
 	}
 	return sp
 }
@@ -350,7 +381,6 @@ func idFromHex(s string) uint64 {
 }
 
 func (tr *Tracer) Inject(sp opentracing.Span, format interface{}, carrier interface{}) error {
-	// TODO(dh): support sampling
 	span, ok := sp.(*Span)
 	if !ok {
 		return opentracing.ErrInvalidSpan
@@ -363,18 +393,18 @@ func (tr *Tracer) Inject(sp opentracing.Span, format interface{}, carrier interf
 }
 
 func (tr *Tracer) Join(operationName string, format interface{}, carrier interface{}) (opentracing.Span, error) {
-	// TODO(dh): support sampling
 	joiner, ok := joiners[format]
 	if !ok {
 		return nil, opentracing.ErrUnsupportedFormat
 	}
-	traceID, parentID, spanID, baggage, err := joiner(carrier)
+	traceID, parentID, spanID, baggage, sampled, err := joiner(carrier)
 	if err != nil {
 		return nil, err
 	}
 
 	return &Span{
-		tracer: tr,
+		tracer:  tr,
+		sampled: sampled,
 		RawSpan: RawSpan{
 			TraceID:  traceID,
 			SpanID:   spanID,
@@ -445,7 +475,7 @@ func (RandomID) GenerateID() uint64 {
 // A Sampler determines whether a span should be sampled or not by
 // returning true or false.
 type Sampler interface {
-	Sample(ctx context.Context, id uint64) bool
+	Sample(id uint64) bool
 }
 
 type constSampler struct {
@@ -459,7 +489,7 @@ func NewConstSampler(decision bool) Sampler {
 }
 
 // Sample implements the Sampler interface.
-func (c constSampler) Sample(context.Context, uint64) bool {
+func (c constSampler) Sample(uint64) bool {
 	return c.decision
 }
 
@@ -475,7 +505,7 @@ func NewProbabilisticSampler(chance float64) Sampler {
 }
 
 // Sample implements the Sampler interface.
-func (p probabilisticSampler) Sample(context.Context, uint64) bool {
+func (p probabilisticSampler) Sample(uint64) bool {
 	return p.rng.Float64() < p.chance
 }
 
@@ -489,6 +519,6 @@ func NewRateSampler(n int) Sampler {
 	return rateSampler{rate.NewLimiter(rate.Limit(n), n)}
 }
 
-func (r rateSampler) Sample(context.Context, uint64) bool {
+func (r rateSampler) Sample(uint64) bool {
 	return r.l.Allow()
 }
