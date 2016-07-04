@@ -13,7 +13,7 @@ func TestText(t *testing.T) {
 			SpanID:   1,
 			ParentID: 2,
 			TraceID:  3,
-			Sampled:  true,
+			Flags:    FlagSampled,
 			Baggage: map[string]string{
 				"k1": "v1",
 				"k2": "",
@@ -25,16 +25,16 @@ func TestText(t *testing.T) {
 	if err := textInjecter(sp, carrier); err != nil {
 		t.Fatal("unexpected error: ", err)
 	}
-	traceID, parentID, spanID, baggage, sampled, err := textJoiner(carrier)
+	traceID, parentID, spanID, flags, baggage, err := textJoiner(carrier)
 	if err != nil {
 		t.Fatal("unexpected error: ", err)
 	}
-	if traceID != sp.TraceID || parentID != sp.ParentID || spanID != sp.SpanID || sampled != sp.Sampled ||
+	if traceID != sp.TraceID || parentID != sp.ParentID || spanID != sp.SpanID || flags != sp.Flags ||
 		len(baggage) != 2 || baggage["k1"] != "v1" || baggage["k2"] != "" {
 
-		t.Errorf("got (%d, %d, %d, %t, %v), want (%d, %d, %d, %t, %v)",
-			traceID, parentID, spanID, sampled, baggage,
-			sp.TraceID, sp.ParentID, sp.SpanID, sp.Sampled, sp.Baggage)
+		t.Errorf("got (%d, %d, %d, %d, %v), want (%d, %d, %d, %d, %v)",
+			traceID, parentID, spanID, flags, baggage,
+			sp.TraceID, sp.ParentID, sp.SpanID, sp.Flags, sp.Baggage)
 	}
 }
 
@@ -44,7 +44,7 @@ func TestBinary(t *testing.T) {
 			SpanID:   1,
 			ParentID: 2,
 			TraceID:  3,
-			Sampled:  true,
+			Flags:    FlagSampled,
 			Baggage: map[string]string{
 				"k1": "v1",
 				"k2": "",
@@ -55,15 +55,15 @@ func TestBinary(t *testing.T) {
 	if err := binaryInjecter(sp, buf); err != nil {
 		t.Fatal("unexpected error: ", err)
 	}
-	traceID, parentID, spanID, baggage, sampled, err := binaryJoiner(buf)
+	traceID, parentID, spanID, flags, baggage, err := binaryJoiner(buf)
 	if err != nil {
 		t.Fatal("unexpected error: ", err)
 	}
-	if traceID != sp.TraceID || parentID != sp.ParentID || spanID != sp.SpanID || sampled != sp.Sampled ||
+	if traceID != sp.TraceID || parentID != sp.ParentID || spanID != sp.SpanID || flags != sp.Flags ||
 		len(baggage) != 2 || baggage["k1"] != "v1" || baggage["k2"] != "" {
 
-		t.Errorf("got (%d, %d, %d, %t, %v), want (%d, %d, %d, %t, %v)",
-			traceID, parentID, spanID, sampled, baggage,
-			sp.TraceID, sp.ParentID, sp.SpanID, sp.Sampled, sp.Baggage)
+		t.Errorf("got (%d, %d, %d, %d, %v), want (%d, %d, %d, %d, %v)",
+			traceID, parentID, spanID, flags, baggage,
+			sp.TraceID, sp.ParentID, sp.SpanID, sp.Flags, sp.Baggage)
 	}
 }
