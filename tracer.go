@@ -265,7 +265,7 @@ func (tr *Tracer) Join(operationName string, format interface{}, carrier interfa
 		return nil, err
 	}
 
-	return &Span{
+	sp := &Span{
 		tracer: tr,
 		RawSpan: RawSpan{
 			TraceID:  context.TraceID,
@@ -274,7 +274,8 @@ func (tr *Tracer) Join(operationName string, format interface{}, carrier interfa
 			Baggage:  context.Baggage,
 			Flags:    context.Flags,
 		},
-	}, nil
+	}
+	return opentracing.StartChildSpan(sp, operationName), nil
 }
 
 // IDGenerator generates IDs for traces and spans. The ID with value 0
