@@ -63,16 +63,17 @@ func New(db *sql.DB) *Storage {
 
 func (st *Storage) Store(sp tracer.RawSpan) (err error) {
 	const upsertSpan = `
-INSERT INTO spans (id, trace_id, time, operation_name)
-VALUES ($1, $2, $3, $4)
+INSERT INTO spans (id, trace_id, time, service_name, operation_name)
+VALUES ($1, $2, $3, $4, $5)
 ON CONFLICT (id) DO
   UPDATE SET
     time = $3,
-    operation_name = $4`
+    service_name = $4,
+    operation_name = $5`
 	const insertTag = `INSERT INTO tags (span_id, trace_id, key, value) VALUES ($1, $2, $3, $4)`
 	const insertLog = `INSERT INTO tags (span_id, trace_id, key, value, time) VALUES ($1, $2, $3, $4, $5)`
 	const insertParentRelation = `INSERT INTO relations (span1_id, span2_id, kind) VALUES ($1, $2, 'parent')`
-	const insertParentSpan = `INSERT INTO spans (id, trace_id, time, operation_name) VALUES ($1, $2, $3, '') ON CONFLICT (id) DO NOTHING`
+	const insertParentSpan = `INSERT INTO spans (id, trace_id, time, service_name, operation_name) VALUES ($1, $2, $3, '', '') ON CONFLICT (id) DO NOTHING`
 
 	tx, err := st.db.Begin()
 	if err != nil {
@@ -87,7 +88,7 @@ ON CONFLICT (id) DO
 	}()
 
 	_, err = tx.Exec(upsertSpan,
-		int64(sp.SpanID), int64(sp.TraceID), timeRange{sp.StartTime, sp.FinishTime}, sp.OperationName)
+		int64(sp.SpanID), int64(sp.TraceID), timeRange{sp.StartTime, sp.FinishTime}, sp.ServiceName, sp.OperationName)
 	if err != nil {
 		return err
 	}
@@ -147,7 +148,7 @@ func (st *Storage) TraceWithID(id uint64) (tracer.RawTrace, error) {
 
 func (st *Storage) traceWithID(tx *sql.Tx, id uint64) (tracer.RawTrace, error) {
 	const selectTrace = `
-SELECT spans.id, spans.trace_id, spans.time, spans.operation_name, tags.key, tags.value, tags.time
+SELECT spans.id, spans.trace_id, spans.time, spans.service_name, spans.operation_name, tags.key, tags.value, tags.time
 FROM spans
   LEFT JOIN tags
     ON spans.id = tags.span_id
@@ -179,6 +180,7 @@ func scanSpans(rows *sql.Rows) ([]tracer.RawSpan, error) {
 		spanID        int64
 		traceID       int64
 		spanTime      timeRange
+		serviceName   string
 		operationName string
 		tagKey        string
 		tagValue      string
@@ -187,7 +189,7 @@ func scanSpans(rows *sql.Rows) ([]tracer.RawSpan, error) {
 	tagTime = new(time.Time)
 	var span tracer.RawSpan
 	for rows.Next() {
-		if err := rows.Scan(&spanID, &traceID, &spanTime, &operationName, &tagKey, &tagValue, &tagTime); err != nil {
+		if err := rows.Scan(&spanID, &traceID, &spanTime, &serviceName, &operationName, &tagKey, &tagValue, &tagTime); err != nil {
 			return nil, err
 		}
 		if spanID != prevSpanID {
@@ -203,6 +205,7 @@ func scanSpans(rows *sql.Rows) ([]tracer.RawSpan, error) {
 		span.TraceID = uint64(traceID)
 		span.StartTime = spanTime.Start
 		span.FinishTime = spanTime.End
+		span.ServiceName = serviceName
 		span.OperationName = operationName
 		if tagKey != "" {
 			if tagTime == nil {
@@ -236,7 +239,7 @@ func (st *Storage) SpanWithID(id uint64) (tracer.RawSpan, error) {
 
 func (st *Storage) spanWithID(tx *sql.Tx, id uint64) (tracer.RawSpan, error) {
 	const selectSpan = `
-SELECT spans.id, spans.trace_id, spans.time, spans.time, spans.operation_name, tags.key, tags.value, tags.time
+SELECT spans.id, spans.trace_id, spans.time, spans.time, spans.service_name, spans.operation_name, tags.key, tags.value, tags.time
 FROM spans
   LEFT JOIN tags
     ON spans.id = tags.span_id

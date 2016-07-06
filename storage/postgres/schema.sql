@@ -10,6 +10,7 @@ CREATE TABLE spans (
        id bigint PRIMARY KEY,
        trace_id bigint,
        time tstzrange NOT NULL,
+       service_name text NOT NULL,
        operation_name text NOT NULL
 );
 

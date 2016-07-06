@@ -60,6 +60,7 @@ type Span struct {
 }
 
 type RawSpan struct {
+	ServiceName   string
 	SpanID        uint64
 	ParentID      uint64
 	TraceID       uint64
@@ -179,15 +180,17 @@ func (sp *Span) Tracer() opentracing.Tracer {
 
 // Tracer is an implementation of the Open Tracing Tracer interface.
 type Tracer struct {
-	Logger  Logger
-	Sampler Sampler
+	ServiceName string
+	Logger      Logger
+	Sampler     Sampler
 
 	storer      Storer
 	idGenerator IDGenerator
 }
 
-func NewTracer(storer Storer, idGenerator IDGenerator) *Tracer {
+func NewTracer(serviceName string, storer Storer, idGenerator IDGenerator) *Tracer {
 	return &Tracer{
+		ServiceName: serviceName,
 		Logger:      defaultLogger{},
 		Sampler:     NewConstSampler(true),
 		storer:      storer,
@@ -210,6 +213,7 @@ func (tr *Tracer) StartSpanWithOptions(opts opentracing.StartSpanOptions) opentr
 	sp := &Span{
 		tracer: tr,
 		RawSpan: RawSpan{
+			ServiceName:   tr.ServiceName,
 			OperationName: opts.OperationName,
 			SpanID:        id,
 			TraceID:       id,

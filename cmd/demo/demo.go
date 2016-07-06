@@ -18,10 +18,10 @@ func main() {
 		panic(err)
 	}
 	storage := postgres.New(db)
-	opentracing.InitGlobalTracer(tracer.NewTracer(storage, tracer.RandomID{}))
-	tracer := opentracing.GlobalTracer()
+	t1 := tracer.NewTracer("frontend", storage, tracer.RandomID{})
+	t2 := tracer.NewTracer("backend", storage, tracer.RandomID{})
 
-	s1 := tracer.StartSpan("frontend")
+	s1 := t1.StartSpan("frontend")
 	s1.SetTag(string(ext.SpanKind), "server")
 	s1.SetTag(string(ext.HTTPUrl), "/hello")
 	s1.SetTag(string(ext.HTTPMethod), "GET")
@@ -30,11 +30,11 @@ func main() {
 	s2.SetTag(string(ext.SpanKind), "client")
 	s2.SetTag(string(ext.Component), "grpc")
 	carrier := opentracing.TextMapCarrier{}
-	if err := tracer.Inject(s2, opentracing.TextMap, carrier); err != nil {
+	if err := t1.Inject(s2, opentracing.TextMap, carrier); err != nil {
 		log.Println(err)
 	}
 
-	s3, err := tracer.Join("backend.hello", opentracing.TextMap, carrier)
+	s3, err := t2.Join("backend.hello", opentracing.TextMap, carrier)
 	if err != nil {
 		log.Println(err)
 	}
