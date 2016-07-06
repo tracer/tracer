@@ -2,12 +2,14 @@ package main
 
 import (
 	"database/sql"
+	"log"
 
 	"honnef.co/go/tracer"
 	"honnef.co/go/tracer/storage/postgres"
 
 	_ "github.com/lib/pq"
 	"github.com/opentracing/opentracing-go"
+	"github.com/opentracing/opentracing-go/ext"
 )
 
 func main() {
@@ -19,20 +21,43 @@ func main() {
 	opentracing.InitGlobalTracer(tracer.NewTracer(storage, tracer.RandomID{}))
 	tracer := opentracing.GlobalTracer()
 
-	span1 := tracer.StartSpan("frontend")
-	span1.SetTag("url", "/hello")
-	span1.SetTag("user_id", 123)
-	span2 := opentracing.StartChildSpan(span1, "backend")
-	span2.SetTag("instance", 456)
-	span3 := opentracing.StartChildSpan(span2, "mysql")
-	span3.LogEventWithPayload("prepare", "SELECT hello FROM world")
-	span3.LogEvent("execute")
-	span3.Finish()
-	span4 := opentracing.StartChildSpan(span2, "redis")
-	span4.LogEvent("store")
-	span4.SetTag("k", "v")
-	span4.SetTag("invalid", 2i)
-	span4.Finish()
-	span2.Finish()
-	span1.Finish()
+	s1 := tracer.StartSpan("frontend")
+	s1.SetTag(string(ext.SpanKind), "server")
+	s1.SetTag(string(ext.HTTPUrl), "/hello")
+	s1.SetTag(string(ext.HTTPMethod), "GET")
+
+	s2 := opentracing.StartChildSpan(s1, "backend.hello")
+	s2.SetTag(string(ext.SpanKind), "client")
+	s2.SetTag(string(ext.Component), "grpc")
+	carrier := opentracing.TextMapCarrier{}
+	if err := tracer.Inject(s2, opentracing.TextMap, carrier); err != nil {
+		log.Println(err)
+	}
+
+	s3, err := tracer.Join("backend.hello", opentracing.TextMap, carrier)
+	if err != nil {
+		log.Println(err)
+	}
+	s3.SetTag(string(ext.SpanKind), "server")
+	s3.SetTag(string(ext.Component), "grpc")
+
+	s4 := opentracing.StartChildSpan(s3, "mysql")
+	s4.SetTag(string(ext.SpanKind), "client")
+	s4.SetTag(string(ext.Component), "mysql")
+	s4.SetTag("sql.query", "SELECT * FROM table1")
+	// The MySQL server is not instrumented, so we only get the client
+	// span.
+	s4.Finish()
+
+	s5 := opentracing.StartChildSpan(s3, "redis")
+	s5.SetTag(string(ext.SpanKind), "client")
+	s4.SetTag(string(ext.Component), "redis")
+	// The Redis server is not instrumented, so we only get the client
+	// span.
+	s5.Finish()
+
+	s3.Finish()
+	s2.Finish()
+	s1.SetTag(string(ext.HTTPStatusCode), 200)
+	s1.Finish()
 }
