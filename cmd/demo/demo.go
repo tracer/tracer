@@ -26,22 +26,23 @@ func main() {
 	s1.SetTag(string(ext.HTTPUrl), "/hello")
 	s1.SetTag(string(ext.HTTPMethod), "GET")
 
-	s2 := opentracing.StartChildSpan(s1, "backend.hello")
+	s2 := t1.StartSpan("backend.hello", opentracing.ChildOf(s1.Context()))
 	s2.SetTag(string(ext.SpanKind), "client")
 	s2.SetTag(string(ext.Component), "grpc")
 	carrier := opentracing.TextMapCarrier{}
-	if err := t1.Inject(s2, opentracing.TextMap, carrier); err != nil {
+	if err := t1.Inject(s2.Context(), opentracing.TextMap, carrier); err != nil {
 		log.Println(err)
 	}
 
-	s3, err := t2.Join("backend.hello", opentracing.TextMap, carrier)
+	c3, err := t2.Extract(opentracing.TextMap, carrier)
 	if err != nil {
 		log.Println(err)
 	}
+	s3 := t2.StartSpan("backend.hello", opentracing.ChildOf(c3))
 	s3.SetTag(string(ext.SpanKind), "server")
 	s3.SetTag(string(ext.Component), "grpc")
 
-	s4 := opentracing.StartChildSpan(s3, "mysql")
+	s4 := t2.StartSpan("mysql", opentracing.ChildOf(s3.Context()))
 	s4.SetTag(string(ext.SpanKind), "client")
 	s4.SetTag(string(ext.Component), "mysql")
 	s4.SetTag("sql.query", "SELECT * FROM table1")
@@ -49,7 +50,7 @@ func main() {
 	// span.
 	s4.Finish()
 
-	s5 := opentracing.StartChildSpan(s3, "redis")
+	s5 := t2.StartSpan("redis", opentracing.ChildOf(s3.Context()))
 	s5.SetTag(string(ext.SpanKind), "client")
 	s4.SetTag(string(ext.Component), "redis")
 	// The Redis server is not instrumented, so we only get the client

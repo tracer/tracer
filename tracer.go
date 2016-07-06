@@ -75,18 +75,14 @@ type Span struct {
 
 // A RawSpan contains all the data associated with a span.
 type RawSpan struct {
+	SpanContext
 	ServiceName   string
-	SpanID        uint64
-	ParentID      uint64
-	TraceID       uint64
 	OperationName string
 	StartTime     time.Time
 	FinishTime    time.Time
-	Flags         uint64
 
-	Tags    map[string]interface{}
-	Baggage map[string]string
-	Logs    []opentracing.LogData
+	Tags map[string]interface{}
+	Logs []opentracing.LogData
 }
 
 // Sampled reports whether this span was sampled.
@@ -171,24 +167,8 @@ func (sp *Span) Log(data opentracing.LogData) {
 	sp.Logs = append(sp.Logs, data)
 }
 
-func (sp *Span) SetBaggageItem(key, value string) opentracing.Span {
-	if !sp.Sampled() {
-		return sp
-	}
-	sp.Baggage[key] = value
-	return sp
-}
-
-func (sp *Span) BaggageItem(key string) string {
-	return sp.Baggage[key]
-}
-
-func (sp *Span) ForeachBaggageItem(handler func(k, v string) bool) {
-	for k, v := range sp.Baggage {
-		if !handler(k, v) {
-			return
-		}
-	}
+func (sp *Span) Context() opentracing.SpanContext {
+	return sp.SpanContext
 }
 
 func (sp *Span) Tracer() opentracing.Tracer {
@@ -215,30 +195,32 @@ func NewTracer(serviceName string, storer Storer, idGenerator IDGenerator) *Trac
 	}
 }
 
-func (tr *Tracer) StartSpan(operationName string) opentracing.Span {
-	return tr.StartSpanWithOptions(opentracing.StartSpanOptions{
-		OperationName: operationName,
-	})
-}
-
-func (tr *Tracer) StartSpanWithOptions(opts opentracing.StartSpanOptions) opentracing.Span {
-	if opts.StartTime.IsZero() {
-		opts.StartTime = time.Now()
+func (tr *Tracer) StartSpan(operationName string, opts ...opentracing.StartSpanOption) opentracing.Span {
+	var sopts opentracing.StartSpanOptions
+	for _, opt := range opts {
+		opt.Apply(&sopts)
+	}
+	if sopts.StartTime.IsZero() {
+		sopts.StartTime = time.Now()
 	}
 
 	id := tr.idGenerator.GenerateID()
 	sp := &Span{
 		tracer: tr,
 		RawSpan: RawSpan{
+			SpanContext: SpanContext{
+				SpanID:  id,
+				TraceID: id,
+			},
 			ServiceName:   tr.ServiceName,
-			OperationName: opts.OperationName,
-			SpanID:        id,
-			TraceID:       id,
-			StartTime:     opts.StartTime,
+			OperationName: operationName,
+			StartTime:     sopts.StartTime,
 		},
 	}
-	if opts.Parent != nil {
-		parent, ok := opts.Parent.(*Span)
+	if len(sopts.References) > 0 {
+		// TODO(dh): support multiple parents, support ChildOf and
+		// FollowsFrom as separate kinds of relations.
+		parent, ok := sopts.References[0].Referee.(SpanContext)
 		if !ok {
 			panic("parent span must be of type *Span")
 		}
@@ -250,6 +232,7 @@ func (tr *Tracer) StartSpanWithOptions(opts opentracing.StartSpanOptions) opentr
 			sp.Flags |= FlagSampled
 		}
 	}
+	sp.Tags = sopts.Tags
 	return sp
 }
 
@@ -264,39 +247,25 @@ func idFromHex(s string) uint64 {
 	return binary.BigEndian.Uint64(b)
 }
 
-func (tr *Tracer) Inject(sp opentracing.Span, format interface{}, carrier interface{}) error {
-	span, ok := sp.(*Span)
+func (tr *Tracer) Inject(sm opentracing.SpanContext, format interface{}, carrier interface{}) error {
+	context, ok := sm.(SpanContext)
 	if !ok {
-		return opentracing.ErrInvalidSpan
+		return opentracing.ErrInvalidSpanContext
 	}
 	injecter, ok := injecters[format]
 	if !ok {
 		return opentracing.ErrUnsupportedFormat
 	}
-	return injecter(span, carrier)
+	return injecter(context, carrier)
 }
 
-func (tr *Tracer) Join(operationName string, format interface{}, carrier interface{}) (opentracing.Span, error) {
+func (tr *Tracer) Extract(format interface{}, carrier interface{}) (opentracing.SpanContext, error) {
 	joiner, ok := joiners[format]
 	if !ok {
 		return nil, opentracing.ErrUnsupportedFormat
 	}
 	context, err := joiner(carrier)
-	if err != nil {
-		return nil, err
-	}
-
-	sp := &Span{
-		tracer: tr,
-		RawSpan: RawSpan{
-			TraceID:  context.TraceID,
-			SpanID:   context.SpanID,
-			ParentID: context.ParentID,
-			Baggage:  context.Baggage,
-			Flags:    context.Flags,
-		},
-	}
-	return opentracing.StartChildSpan(sp, operationName), nil
+	return context, err
 }
 
 // IDGenerator generates IDs for traces and spans. The ID with value 0

@@ -10,19 +10,21 @@ import (
 func TestText(t *testing.T) {
 	sp := &Span{
 		RawSpan: RawSpan{
-			SpanID:   1,
-			ParentID: 2,
-			TraceID:  3,
-			Flags:    FlagSampled,
-			Baggage: map[string]string{
-				"k1": "v1",
-				"k2": "",
+			SpanContext: SpanContext{
+				SpanID:   1,
+				ParentID: 2,
+				TraceID:  3,
+				Flags:    FlagSampled,
+				Baggage: map[string]string{
+					"k1": "v1",
+					"k2": "",
+				},
 			},
 		},
 	}
 
 	carrier := opentracing.TextMapCarrier{}
-	if err := textInjecter(sp, carrier); err != nil {
+	if err := textInjecter(sp.Context().(SpanContext), carrier); err != nil {
 		t.Fatal("unexpected error: ", err)
 	}
 	context, err := textJoiner(carrier)
@@ -41,18 +43,20 @@ func TestText(t *testing.T) {
 func TestBinary(t *testing.T) {
 	sp := &Span{
 		RawSpan: RawSpan{
-			SpanID:   1,
-			ParentID: 2,
-			TraceID:  3,
-			Flags:    FlagSampled,
-			Baggage: map[string]string{
-				"k1": "v1",
-				"k2": "",
+			SpanContext: SpanContext{
+				SpanID:   1,
+				ParentID: 2,
+				TraceID:  3,
+				Flags:    FlagSampled,
+				Baggage: map[string]string{
+					"k1": "v1",
+					"k2": "",
+				},
 			},
 		},
 	}
 	buf := &bytes.Buffer{}
-	if err := binaryInjecter(sp, buf); err != nil {
+	if err := binaryInjecter(sp.Context().(SpanContext), buf); err != nil {
 		t.Fatal("unexpected error: ", err)
 	}
 	context, err := binaryJoiner(buf)

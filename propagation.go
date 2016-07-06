@@ -9,8 +9,8 @@ import (
 	"github.com/opentracing/opentracing-go"
 )
 
-type Joiner func(carrier interface{}) (Context, error)
-type Injecter func(sp *Span, carrier interface{}) error
+type Joiner func(carrier interface{}) (SpanContext, error)
+type Injecter func(sm SpanContext, carrier interface{}) error
 
 var joiners = map[interface{}]Joiner{
 	opentracing.TextMap: textJoiner,
@@ -30,7 +30,7 @@ func RegisterInjecter(format interface{}, injecter Injecter) {
 	injecters[format] = injecter
 }
 
-type Context struct {
+type SpanContext struct {
 	TraceID  uint64
 	ParentID uint64
 	SpanID   uint64
@@ -38,27 +38,44 @@ type Context struct {
 	Baggage  map[string]string
 }
 
-func textInjecter(sp *Span, carrier interface{}) error {
+func (c SpanContext) SetBaggageItem(key, value string) opentracing.SpanContext {
+	c.Baggage[key] = value
+	return c
+}
+
+func (c SpanContext) BaggageItem(key string) string {
+	return c.Baggage[key]
+}
+
+func (c SpanContext) ForeachBaggageItem(handler func(k, v string) bool) {
+	for k, v := range c.Baggage {
+		if !handler(k, v) {
+			return
+		}
+	}
+}
+
+func textInjecter(sm SpanContext, carrier interface{}) error {
 	w, ok := carrier.(opentracing.TextMapWriter)
 	if !ok {
 		return opentracing.ErrInvalidCarrier
 	}
-	w.Set("Tracer-TraceId", idToHex(sp.TraceID))
-	w.Set("Tracer-SpanId", idToHex(sp.SpanID))
-	w.Set("Tracer-ParentSpanId", idToHex(sp.ParentID))
-	w.Set("Tracer-Flags", strconv.FormatUint(sp.Flags, 10))
-	for k, v := range sp.Baggage {
+	w.Set("Tracer-TraceId", idToHex(sm.TraceID))
+	w.Set("Tracer-SpanId", idToHex(sm.SpanID))
+	w.Set("Tracer-ParentSpanId", idToHex(sm.ParentID))
+	w.Set("Tracer-Flags", strconv.FormatUint(sm.Flags, 10))
+	for k, v := range sm.Baggage {
 		w.Set("Tracer-Baggage-"+k, v)
 	}
 	return nil
 }
 
-func textJoiner(carrier interface{}) (Context, error) {
+func textJoiner(carrier interface{}) (SpanContext, error) {
 	r, ok := carrier.(opentracing.TextMapReader)
 	if !ok {
-		return Context{}, opentracing.ErrInvalidCarrier
+		return SpanContext{}, opentracing.ErrInvalidCarrier
 	}
-	ctx := Context{Baggage: map[string]string{}}
+	ctx := SpanContext{Baggage: map[string]string{}}
 	err := r.ForeachKey(func(key string, val string) error {
 		lower := strings.ToLower(key)
 		switch lower {
@@ -79,23 +96,23 @@ func textJoiner(carrier interface{}) (Context, error) {
 		return nil
 	})
 	if ctx.TraceID == 0 {
-		return Context{}, opentracing.ErrTraceNotFound
+		return SpanContext{}, opentracing.ErrSpanContextNotFound
 	}
 	return ctx, err
 }
 
-func binaryInjecter(sp *Span, carrier interface{}) error {
+func binaryInjecter(sm SpanContext, carrier interface{}) error {
 	w, ok := carrier.(io.Writer)
 	if !ok {
 		return opentracing.ErrInvalidCarrier
 	}
 	b := make([]byte, 8*5)
-	binary.BigEndian.PutUint64(b, sp.TraceID)
-	binary.BigEndian.PutUint64(b[8:], sp.SpanID)
-	binary.BigEndian.PutUint64(b[16:], sp.ParentID)
-	binary.BigEndian.PutUint64(b[24:], sp.Flags)
-	binary.BigEndian.PutUint64(b[32:], uint64(len(sp.Baggage)))
-	for k, v := range sp.Baggage {
+	binary.BigEndian.PutUint64(b, sm.TraceID)
+	binary.BigEndian.PutUint64(b[8:], sm.SpanID)
+	binary.BigEndian.PutUint64(b[16:], sm.ParentID)
+	binary.BigEndian.PutUint64(b[24:], sm.Flags)
+	binary.BigEndian.PutUint64(b[32:], uint64(len(sm.Baggage)))
+	for k, v := range sm.Baggage {
 		b2 := make([]byte, 16+len(k)+len(v))
 		binary.BigEndian.PutUint64(b2, uint64(len(k)))
 		binary.BigEndian.PutUint64(b2[8:], uint64(len(v)))
@@ -107,18 +124,18 @@ func binaryInjecter(sp *Span, carrier interface{}) error {
 	return err
 }
 
-func binaryJoiner(carrier interface{}) (Context, error) {
+func binaryJoiner(carrier interface{}) (SpanContext, error) {
 	r, ok := carrier.(io.Reader)
 	if !ok {
-		return Context{}, opentracing.ErrInvalidCarrier
+		return SpanContext{}, opentracing.ErrInvalidCarrier
 	}
-	ctx := Context{Baggage: map[string]string{}}
+	ctx := SpanContext{Baggage: map[string]string{}}
 	b := make([]byte, 8*5)
 	if _, err := io.ReadFull(r, b); err != nil {
 		if err == io.ErrUnexpectedEOF {
-			return Context{}, opentracing.ErrTraceNotFound
+			return SpanContext{}, opentracing.ErrSpanContextNotFound
 		}
-		return Context{}, err
+		return SpanContext{}, err
 	}
 	ctx.TraceID = binary.BigEndian.Uint64(b)
 	ctx.SpanID = binary.BigEndian.Uint64(b[8:])
@@ -130,23 +147,23 @@ func binaryJoiner(carrier interface{}) (Context, error) {
 	for i := uint64(0); i < n; i++ {
 		if _, err := io.ReadFull(r, b); err != nil {
 			if err == io.ErrUnexpectedEOF {
-				return Context{}, opentracing.ErrTraceNotFound
+				return SpanContext{}, opentracing.ErrSpanContextNotFound
 			}
-			return Context{}, err
+			return SpanContext{}, err
 		}
 
 		kl := int(binary.BigEndian.Uint64(b))
 		vl := int(binary.BigEndian.Uint64(b[8:]))
 		if kl <= 0 || vl < 0 {
-			return Context{}, opentracing.ErrTraceNotFound
+			return SpanContext{}, opentracing.ErrSpanContextNotFound
 		}
 
 		b2 := make([]byte, kl+vl)
 		if _, err := io.ReadFull(r, b2); err != nil {
 			if err == io.ErrUnexpectedEOF {
-				return Context{}, opentracing.ErrTraceNotFound
+				return SpanContext{}, opentracing.ErrSpanContextNotFound
 			}
-			return Context{}, err
+			return SpanContext{}, err
 		}
 		ctx.Baggage[string(b2[:kl])] = string(b2[kl:])
 	}
