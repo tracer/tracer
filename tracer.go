@@ -1,5 +1,13 @@
 // Package tracer implements a Dapper-style tracing system. It is
 // compatible with the Open Tracing specification.
+//
+// Errors and logging
+//
+// The instrumentation is defensive and will never purposefully panic.
+// At the same time, most functions do not return errors, because
+// they'll be called by automatic instrumentation, hidden from the
+// user. Instead, errors will be logged. The logger can be changed by
+// assigning to the Logger field in Tracer.
 package tracer
 
 import (
@@ -17,7 +25,10 @@ const (
 	FlagSampled = 1 << iota
 )
 
+// A Logger logs messages.
 type Logger interface {
+	// Printf logs a single message, given a format and values. The
+	// format is documented in the fmt package.
 	Printf(format string, values ...interface{})
 }
 
@@ -27,6 +38,8 @@ func (defaultLogger) Printf(format string, values ...interface{}) {
 	log.Printf(format, values...)
 }
 
+// valueType returns the broad categorization of a value's type and
+// whether it is permitted as a payload.
 func valueType(v interface{}) (string, bool) {
 	if v == nil {
 		return "", true
@@ -48,6 +61,7 @@ func valueType(v interface{}) (string, bool) {
 	return "", false
 }
 
+// A RawTrace contains all the data associated with a trace.
 type RawTrace struct {
 	TraceID uint64
 	Spans   []RawSpan
@@ -59,6 +73,7 @@ type Span struct {
 	RawSpan
 }
 
+// A RawSpan contains all the data associated with a span.
 type RawSpan struct {
 	ServiceName   string
 	SpanID        uint64
@@ -74,10 +89,12 @@ type RawSpan struct {
 	Logs    []opentracing.LogData
 }
 
+// Sampled reports whether this span was sampled.
 func (sp *Span) Sampled() bool {
 	return (sp.Flags & FlagSampled) > 0
 }
 
+// SetOperationName sets the span's operation name.
 func (sp *Span) SetOperationName(name string) opentracing.Span {
 	sp.OperationName = name
 	return sp
@@ -301,15 +318,25 @@ type Storer interface {
 	Store(sp RawSpan) error
 }
 
+// A Queryer is a backend that allows fetching traces and spans by ID
+// or via a more advanced query.
 type Queryer interface {
+	// TraceWithID returns a trace with a specific ID.
 	TraceWithID(id uint64) (RawTrace, error)
+	// SpanWithID returns a span with a specific ID.
 	SpanWithID(id uint64) (RawSpan, error)
+	// QueryTraces returns all traces that match a query.
 	QueryTraces(q Query) ([]RawTrace, error)
 }
 
+// QueryTag describes a single tag or log entry that should be queried
+// for.
 type QueryTag struct {
-	Key        string
-	Value      string
+	// The key of the tag.
+	Key string
+	// The value of the tag.
+	Value string
+	// Whether the value should be checked for.
 	CheckValue bool
 }
 
