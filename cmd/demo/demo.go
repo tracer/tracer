@@ -4,8 +4,8 @@ import (
 	"database/sql"
 	"log"
 
-	"honnef.co/go/tracer"
-	"honnef.co/go/tracer/storage/postgres"
+	"github.com/tracer/tracer"
+	"github.com/tracer/tracer/storage/postgres"
 
 	_ "github.com/lib/pq"
 	"github.com/opentracing/opentracing-go"

@@ -3,10 +3,11 @@ package main
 import (
 	"database/sql"
 
+	"github.com/tracer/tracer"
+	"github.com/tracer/tracer/storage/postgres"
+
 	_ "github.com/lib/pq"
 	"honnef.co/go/spew"
-	"honnef.co/go/tracer"
-	"honnef.co/go/tracer/storage/postgres"
 )
 
 func main() {

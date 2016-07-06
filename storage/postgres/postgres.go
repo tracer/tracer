@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"honnef.co/go/tracer"
+	"github.com/tracer/tracer"
 
 	"github.com/jmoiron/sqlx"
 	"github.com/opentracing/opentracing-go"
