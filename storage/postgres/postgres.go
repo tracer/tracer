@@ -4,15 +4,36 @@ import (
 	"bytes"
 	"database/sql"
 	"database/sql/driver"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
 
 	"github.com/tracer/tracer"
+	"github.com/tracer/tracer/storage"
 
 	"github.com/jmoiron/sqlx"
 	"github.com/opentracing/opentracing-go"
 )
+
+func init() {
+	storage.Register("postgres", setup)
+}
+
+func setup(conf map[string]interface{}) (tracer.Storer, error) {
+	url, ok := conf["url"].(string)
+	if !ok {
+		return nil, errors.New("missing url for postgres backend")
+	}
+	db, err := sql.Open("postgres", url)
+	if err != nil {
+		return nil, err
+	}
+	if err := db.Ping(); err != nil {
+		return nil, fmt.Errorf("drror connecting to PostgreSQL database: %s", err)
+	}
+	return New(db), nil
+}
 
 var _ tracer.Queryer = (*Storage)(nil)
 var _ tracer.Storer = (*Storage)(nil)
