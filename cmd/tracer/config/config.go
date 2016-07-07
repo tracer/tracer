@@ -78,3 +78,35 @@ func (cfg Config) StorageConfig() (map[string]interface{}, error) {
 	}
 	return conf, nil
 }
+
+func (cfg Config) Transport() (string, error) {
+	gen, err := cfg.general()
+	if err != nil {
+		return "", err
+	}
+	transport, ok := gen["transport"]
+	if !ok {
+		return "", MissingKeyError("general.transport")
+	}
+	s, ok := transport.(string)
+	if !ok {
+		return "", WrongValueTypeError{"general.transport", "string"}
+	}
+	return s, nil
+}
+
+func (cfg Config) TransportConfig() (map[string]interface{}, error) {
+	engine, err := cfg.Transport()
+	if err != nil {
+		return nil, err
+	}
+	transport, ok := cfg.cfg["transport"].(map[string]interface{})
+	if !ok {
+		return nil, MissingSectionError("transport")
+	}
+	conf, ok := transport[engine].(map[string]interface{})
+	if !ok {
+		return nil, MissingSectionError("transport." + engine)
+	}
+	return conf, nil
+}
