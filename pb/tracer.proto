@@ -1,0 +1,35 @@
+syntax = "proto3";
+
+import "github.com/golang/protobuf/ptypes/timestamp/timestamp.proto";
+
+message Trace {}
+
+message Span {
+  uint64 span_id = 1;
+  uint64 parent_id = 2;
+  uint64 trace_id = 3;
+  string service_name = 4;
+  string operation_name = 5;
+  google.protobuf.Timestamp start_time = 6;
+  google.protobuf.Timestamp finish_time = 7;
+  uint64 flags = 8;
+  repeated Tag tags = 9;
+}
+
+message Tag {
+  string key = 1;
+  // FIXME support non-string values
+  string value = 2;
+  google.protobuf.Timestamp time = 3;
+}
+
+message StoreRequest {
+  Span span = 1;
+}
+
+message StoreResponse {
+}
+
+service Storer {
+  rpc Store(StoreRequest) returns (StoreResponse);
+}

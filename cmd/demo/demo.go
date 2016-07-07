@@ -1,23 +1,21 @@
 package main
 
 import (
-	"database/sql"
 	"log"
 
 	"github.com/tracer/tracer"
-	"github.com/tracer/tracer/storage/postgres"
 
 	_ "github.com/lib/pq"
 	"github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/ext"
+	"google.golang.org/grpc"
 )
 
 func main() {
-	db, err := sql.Open("postgres", "user=tracer dbname=postgres password=tracer sslmode=disable")
+	storage, err := tracer.NewGRPC("localhost:9999", grpc.WithInsecure())
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
-	storage := postgres.New(db)
 	t1 := tracer.NewTracer("frontend", storage, tracer.RandomID{})
 	t2 := tracer.NewTracer("backend", storage, tracer.RandomID{})
 
