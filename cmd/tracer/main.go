@@ -1,21 +1,19 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"log"
-	"net"
 	"os"
 
 	"github.com/tracer/tracer"
 	"github.com/tracer/tracer/cmd/tracer/config"
-	"github.com/tracer/tracer/pb"
 	"github.com/tracer/tracer/server"
 	"github.com/tracer/tracer/storage"
 	_ "github.com/tracer/tracer/storage/postgres"
+	"github.com/tracer/tracer/transport"
+	_ "github.com/tracer/tracer/transport/grpc"
 
 	_ "github.com/lib/pq"
-	"google.golang.org/grpc"
 )
 
 func loadStorage(conf config.Config) (tracer.Storer, error) {
@@ -35,34 +33,23 @@ func loadStorage(conf config.Config) (tracer.Storer, error) {
 }
 
 func listen(srv *server.Server, conf config.Config) error {
-	engine, err := conf.Transport()
+	name, err := conf.Transport()
 	if err != nil {
 		return err
 	}
-	switch engine {
-	case "grpc":
-		return listenGRPC(srv, conf)
-	default:
-		return fmt.Errorf("unsupported transport engine: %s", engine)
-	}
-}
-
-func listenGRPC(srv *server.Server, conf config.Config) error {
-	transport, err := conf.TransportConfig()
-	if err != nil {
-		return err
-	}
-	listen, ok := transport["listen"].(string)
+	fn, ok := transport.Get(name)
 	if !ok {
-		return errors.New("missing listen setting for gRPC transport")
+		return fmt.Errorf("unsupported transport: %s", name)
 	}
-	l, err := net.Listen("tcp", listen)
+	transportConf, err := conf.TransportConfig()
 	if err != nil {
 		return err
 	}
-	s := grpc.NewServer()
-	pb.RegisterStorerServer(s, srv)
-	return s.Serve(l)
+	transport, err := fn(transportConf)
+	if err != nil {
+		return err
+	}
+	return transport.Start(srv)
 }
 
 func main() {
