@@ -63,8 +63,15 @@ func valueType(v interface{}) (string, bool) {
 
 // A RawTrace contains all the data associated with a trace.
 type RawTrace struct {
-	TraceID uint64
-	Spans   []RawSpan
+	TraceID   uint64        `json:"trace_id"`
+	Spans     []RawSpan     `json:"spans"`
+	Relations []RawRelation `json:"relations"`
+}
+
+type RawRelation struct {
+	ParentID uint64 `json:"parent_id"`
+	ChildID  uint64 `json:"child_id"`
+	Kind     string `json:"kind"`
 }
 
 // Span is an implementation of the Open Tracing Span interface.

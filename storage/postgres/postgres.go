@@ -177,19 +177,46 @@ WHERE spans.trace_id = $1
 ORDER BY
   spans.time ASC,
   spans.id`
+	const selectRelations = `
+SELECT r.span1_id, r.span2_id, r.kind
+FROM relations AS r
+JOIN spans ON spans.id = r.span1_id
+WHERE spans.trace_id = $1;
+`
 	rows, err := tx.Query(selectTrace, int64(id))
 	if err != nil {
 		return tracer.RawTrace{}, err
 	}
-	defer rows.Close()
-
 	spans, err := scanSpans(rows)
 	if err != nil {
 		return tracer.RawTrace{}, err
 	}
+	rows.Close()
+
+	rows, err = tx.Query(selectRelations, int64(id))
+	if err != nil {
+		return tracer.RawTrace{}, err
+	}
+	var rels []tracer.RawRelation
+	var parent, child int64
+	var kind string
+	for rows.Next() {
+		if err := rows.Scan(&parent, &child, &kind); err != nil {
+			return tracer.RawTrace{}, err
+		}
+		rels = append(rels, tracer.RawRelation{
+			ParentID: uint64(parent),
+			ChildID:  uint64(child),
+			Kind:     kind,
+		})
+	}
+	if err := rows.Err(); err != nil {
+		return tracer.RawTrace{}, err
+	}
 	return tracer.RawTrace{
-		TraceID: id,
-		Spans:   spans,
+		TraceID:   id,
+		Spans:     spans,
+		Relations: rels,
 	}, nil
 }
 
