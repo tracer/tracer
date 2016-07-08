@@ -8,14 +8,14 @@ import (
 
 type StorageTransportEngine func(srv *Server, conf map[string]interface{}) (StorageTransport, error)
 
-var engines = map[string]StorageTransportEngine{}
+var storageTransportEngines = map[string]StorageTransportEngine{}
 
 func RegisterStorageTransport(name string, engine StorageTransportEngine) {
-	engines[name] = engine
+	storageTransportEngines[name] = engine
 }
 
 func GetStorageTransport(name string) (StorageTransportEngine, bool) {
-	transport, ok := engines[name]
+	transport, ok := storageTransportEngines[name]
 	return transport, ok
 }
 
@@ -26,6 +26,19 @@ type StorageTransport interface {
 type Storage interface {
 	tracer.Storer
 	Queryer
+}
+
+type StorageEngine func(conf map[string]interface{}) (Storage, error)
+
+var storageEngines = map[string]StorageEngine{}
+
+func RegisterStorage(name string, engine StorageEngine) {
+	storageEngines[name] = engine
+}
+
+func GetStorage(name string) (StorageEngine, bool) {
+	storer, ok := storageEngines[name]
+	return storer, ok
 }
 
 type Server struct {

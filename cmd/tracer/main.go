@@ -7,7 +7,6 @@ import (
 
 	"github.com/tracer/tracer/cmd/tracer/config"
 	"github.com/tracer/tracer/server"
-	"github.com/tracer/tracer/storage"
 	_ "github.com/tracer/tracer/storage/postgres"
 	_ "github.com/tracer/tracer/transport/grpc"
 )
@@ -17,7 +16,7 @@ func loadStorage(conf config.Config) (server.Storage, error) {
 	if err != nil {
 		return nil, err
 	}
-	storer, ok := storage.Get(name)
+	storer, ok := server.GetStorage(name)
 	if !ok {
 		return nil, fmt.Errorf("unsupported storage engine: %s", name)
 	}

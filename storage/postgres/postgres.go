@@ -11,7 +11,6 @@ import (
 
 	"github.com/tracer/tracer"
 	"github.com/tracer/tracer/server"
-	"github.com/tracer/tracer/storage"
 
 	"github.com/jmoiron/sqlx"
 	_ "github.com/lib/pq"
@@ -19,7 +18,7 @@ import (
 )
 
 func init() {
-	storage.Register("postgres", setup)
+	server.RegisterStorage("postgres", setup)
 }
 
 func setup(conf map[string]interface{}) (server.Storage, error) {
