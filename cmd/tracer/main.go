@@ -9,6 +9,7 @@ import (
 	"github.com/tracer/tracer/server"
 	_ "github.com/tracer/tracer/storage/postgres"
 	_ "github.com/tracer/tracer/transport/grpc"
+	_ "github.com/tracer/tracer/transport/http"
 )
 
 func loadStorage(conf config.Config) (server.Storage, error) {
@@ -47,6 +48,26 @@ func listenStorage(srv *server.Server, conf config.Config) error {
 	return transport.Start()
 }
 
+func listenQueryer(srv *server.Server, conf config.Config) error {
+	name, err := conf.QueryTransport()
+	if err != nil {
+		return err
+	}
+	fn, ok := server.GetQueryTransport(name)
+	if !ok {
+		return fmt.Errorf("unsupported query transport: %s", name)
+	}
+	transportConf, err := conf.QueryTransportConfig()
+	if err != nil {
+		return err
+	}
+	transport, err := fn(srv, transportConf)
+	if err != nil {
+		return err
+	}
+	return transport.Start()
+}
+
 func main() {
 	f, err := os.Open("example.conf")
 	if err != nil {
@@ -62,8 +83,15 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+
 	srv := &server.Server{Storage: storage}
-	if err := listenStorage(srv, conf); err != nil {
-		log.Fatalln("Error running transport:", err)
+	go func() {
+		if err := listenStorage(srv, conf); err != nil {
+			log.Fatalln("Error running storage transport:", err)
+		}
+	}()
+
+	if err := listenQueryer(srv, conf); err != nil {
+		log.Fatalln("Error running query transport:", err)
 	}
 }

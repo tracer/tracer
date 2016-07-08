@@ -110,3 +110,35 @@ func (cfg Config) StorageTransportConfig() (map[string]interface{}, error) {
 	}
 	return conf, nil
 }
+
+func (cfg Config) QueryTransport() (string, error) {
+	gen, err := cfg.general()
+	if err != nil {
+		return "", err
+	}
+	transport, ok := gen["query_transport"]
+	if !ok {
+		return "", MissingKeyError("general.query_transport")
+	}
+	s, ok := transport.(string)
+	if !ok {
+		return "", WrongValueTypeError{"general.query_transport", "string"}
+	}
+	return s, nil
+}
+
+func (cfg Config) QueryTransportConfig() (map[string]interface{}, error) {
+	engine, err := cfg.QueryTransport()
+	if err != nil {
+		return nil, err
+	}
+	transport, ok := cfg.cfg["query_transport"].(map[string]interface{})
+	if !ok {
+		return nil, MissingSectionError("query_transport")
+	}
+	conf, ok := transport[engine].(map[string]interface{})
+	if !ok {
+		return nil, MissingSectionError("query_transport." + engine)
+	}
+	return conf, nil
+}

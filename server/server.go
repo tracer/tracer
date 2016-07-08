@@ -7,8 +7,12 @@ import (
 )
 
 type StorageTransportEngine func(srv *Server, conf map[string]interface{}) (StorageTransport, error)
+type QueryTransportEngine func(srv *Server, conf map[string]interface{}) (QueryTransport, error)
+type StorageEngine func(conf map[string]interface{}) (Storage, error)
 
 var storageTransportEngines = map[string]StorageTransportEngine{}
+var queryTransportEngines = map[string]QueryTransportEngine{}
+var storageEngines = map[string]StorageEngine{}
 
 func RegisterStorageTransport(name string, engine StorageTransportEngine) {
 	storageTransportEngines[name] = engine
@@ -19,18 +23,14 @@ func GetStorageTransport(name string) (StorageTransportEngine, bool) {
 	return transport, ok
 }
 
-type StorageTransport interface {
-	Start() error
+func RegisterQueryTransport(name string, engine QueryTransportEngine) {
+	queryTransportEngines[name] = engine
 }
 
-type Storage interface {
-	tracer.Storer
-	Queryer
+func GetQueryTransport(name string) (QueryTransportEngine, bool) {
+	transport, ok := queryTransportEngines[name]
+	return transport, ok
 }
-
-type StorageEngine func(conf map[string]interface{}) (Storage, error)
-
-var storageEngines = map[string]StorageEngine{}
 
 func RegisterStorage(name string, engine StorageEngine) {
 	storageEngines[name] = engine
@@ -39,6 +39,19 @@ func RegisterStorage(name string, engine StorageEngine) {
 func GetStorage(name string) (StorageEngine, bool) {
 	storer, ok := storageEngines[name]
 	return storer, ok
+}
+
+type StorageTransport interface {
+	Start() error
+}
+
+type QueryTransport interface {
+	Start() error
+}
+
+type Storage interface {
+	tracer.Storer
+	Queryer
 }
 
 type Server struct {
