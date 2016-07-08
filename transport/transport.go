@@ -2,7 +2,7 @@ package transport
 
 import "github.com/tracer/tracer/server"
 
-type Engine func(conf map[string]interface{}) (Transport, error)
+type Engine func(srv *server.Server, conf map[string]interface{}) (Transport, error)
 
 var engines = map[string]Engine{}
 
@@ -16,5 +16,5 @@ func Get(name string) (Engine, bool) {
 }
 
 type Transport interface {
-	Start(srv *server.Server) error
+	Start() error
 }

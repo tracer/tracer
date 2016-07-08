@@ -43,11 +43,11 @@ func listen(srv *server.Server, conf config.Config) error {
 	if err != nil {
 		return err
 	}
-	transport, err := fn(transportConf)
+	transport, err := fn(srv, transportConf)
 	if err != nil {
 		return err
 	}
-	return transport.Start(srv)
+	return transport.Start()
 }
 
 func main() {
