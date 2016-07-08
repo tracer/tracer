@@ -29,16 +29,16 @@ func loadStorage(conf config.Config) (server.Storage, error) {
 	return storer(storageConf)
 }
 
-func listen(srv *server.Server, conf config.Config) error {
-	name, err := conf.Transport()
+func listenStorage(srv *server.Server, conf config.Config) error {
+	name, err := conf.StorageTransport()
 	if err != nil {
 		return err
 	}
 	fn, ok := transport.Get(name)
 	if !ok {
-		return fmt.Errorf("unsupported transport: %s", name)
+		return fmt.Errorf("unsupported storage transport: %s", name)
 	}
-	transportConf, err := conf.TransportConfig()
+	transportConf, err := conf.StorageTransportConfig()
 	if err != nil {
 		return err
 	}
@@ -65,7 +65,7 @@ func main() {
 		log.Fatal(err)
 	}
 	srv := &server.Server{Storage: storage}
-	if err := listen(srv, conf); err != nil {
+	if err := listenStorage(srv, conf); err != nil {
 		log.Fatalln("Error running transport:", err)
 	}
 }
