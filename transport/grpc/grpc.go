@@ -83,6 +83,6 @@ func (g *GRPC) Store(ctx context.Context, req *pb.StoreRequest) (*pb.StoreRespon
 		}
 	}
 
-	err = g.srv.Storer.Store(sp)
+	err = g.srv.Storage.Store(sp)
 	return &pb.StoreResponse{}, err
 }

@@ -1,8 +1,8 @@
 package storage
 
-import "github.com/tracer/tracer"
+import "github.com/tracer/tracer/server"
 
-type Engine func(conf map[string]interface{}) (tracer.Storer, error)
+type Engine func(conf map[string]interface{}) (server.Storage, error)
 
 var engines = map[string]Engine{}
 

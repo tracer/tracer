@@ -3,7 +3,7 @@ package main
 import (
 	"database/sql"
 
-	"github.com/tracer/tracer"
+	"github.com/tracer/tracer/server"
 	"github.com/tracer/tracer/storage/postgres"
 
 	_ "github.com/lib/pq"
@@ -17,10 +17,10 @@ func main() {
 	}
 	storage := postgres.New(db)
 	spew.Dump(storage.QueryTraces(
-		tracer.Query{
+		server.Query{
 			//MaxDuration: time.Second,
 			//StartTime: time.Now().Add(-1 * time.Hour),
-			AndTags: []tracer.QueryTag{
+			AndTags: []server.QueryTag{
 				{"url", "/hello2", true},
 			},
 		}))

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/tracer/tracer"
+	"github.com/tracer/tracer/server"
 	"github.com/tracer/tracer/storage"
 
 	"github.com/jmoiron/sqlx"
@@ -21,7 +22,7 @@ func init() {
 	storage.Register("postgres", setup)
 }
 
-func setup(conf map[string]interface{}) (tracer.Storer, error) {
+func setup(conf map[string]interface{}) (server.Storage, error) {
 	url, ok := conf["url"].(string)
 	if !ok {
 		return nil, errors.New("missing url for postgres backend")
@@ -36,8 +37,7 @@ func setup(conf map[string]interface{}) (tracer.Storer, error) {
 	return New(db), nil
 }
 
-var _ tracer.Queryer = (*Storage)(nil)
-var _ tracer.Storer = (*Storage)(nil)
+var _ server.Storage = (*Storage)(nil)
 
 // timeRange represents a PostgreSQL tstzrange. Caveat: it only
 // supports inclusive ranges.
@@ -281,7 +281,7 @@ LIMIT 1`
 	return spans[0], nil
 }
 
-func (st *Storage) QueryTraces(q tracer.Query) ([]tracer.RawTrace, error) {
+func (st *Storage) QueryTraces(q server.Query) ([]tracer.RawTrace, error) {
 	tx, err := st.db.Begin()
 	if err != nil {
 		return nil, err

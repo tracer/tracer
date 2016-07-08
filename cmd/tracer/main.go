@@ -5,7 +5,6 @@ import (
 	"log"
 	"os"
 
-	"github.com/tracer/tracer"
 	"github.com/tracer/tracer/cmd/tracer/config"
 	"github.com/tracer/tracer/server"
 	"github.com/tracer/tracer/storage"
@@ -14,7 +13,7 @@ import (
 	_ "github.com/tracer/tracer/transport/grpc"
 )
 
-func loadStorage(conf config.Config) (tracer.Storer, error) {
+func loadStorage(conf config.Config) (server.Storage, error) {
 	name, err := conf.Storage()
 	if err != nil {
 		return nil, err
@@ -65,7 +64,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	srv := &server.Server{Storer: storage}
+	srv := &server.Server{Storage: storage}
 	if err := listen(srv, conf); err != nil {
 		log.Fatalln("Error running transport:", err)
 	}
