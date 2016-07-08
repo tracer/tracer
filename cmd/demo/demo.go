@@ -55,6 +55,24 @@ func main() {
 
 	s3.Finish()
 	s2.Finish()
+
+	s6 := t1.StartSpan("backend.ads", opentracing.ChildOf(s1.Context()))
+	s6.SetTag(string(ext.SpanKind), ext.SpanKindRPCClient)
+	s6.SetTag(string(ext.Component), "grpc")
+	carrier = opentracing.TextMapCarrier{}
+	if err := t1.Inject(s6.Context(), opentracing.TextMap, carrier); err != nil {
+		log.Println(err)
+	}
+
+	c7, err := t2.Extract(opentracing.TextMap, carrier)
+	if err != nil {
+		log.Println(err)
+	}
+	s7 := t2.StartSpan("backend.ads", ext.RPCServerOption(c7))
+	s7.SetTag(string(ext.Component), "grpc")
+	s7.Finish()
+	s6.Finish()
+
 	s1.SetTag(string(ext.HTTPStatusCode), 200)
 	s1.Finish()
 }
