@@ -158,16 +158,16 @@ ON CONFLICT (id) DO
 	return nil
 }
 
-func (st *Storage) TraceWithID(id uint64) (tracer.RawTrace, error) {
+func (st *Storage) TraceByID(id uint64) (tracer.RawTrace, error) {
 	tx, err := st.db.Begin()
 	if err != nil {
 		return tracer.RawTrace{}, err
 	}
 	defer tx.Rollback()
-	return st.traceWithID(tx, id)
+	return st.traceByID(tx, id)
 }
 
-func (st *Storage) traceWithID(tx *sql.Tx, id uint64) (tracer.RawTrace, error) {
+func (st *Storage) traceByID(tx *sql.Tx, id uint64) (tracer.RawTrace, error) {
 	const selectTrace = `
 SELECT spans.id, spans.trace_id, spans.time, spans.service_name, spans.operation_name, tags.key, tags.value, tags.time
 FROM spans
@@ -250,16 +250,16 @@ func scanSpans(rows *sql.Rows) ([]tracer.RawSpan, error) {
 	return spans, nil
 }
 
-func (st *Storage) SpanWithID(id uint64) (tracer.RawSpan, error) {
+func (st *Storage) SpanByID(id uint64) (tracer.RawSpan, error) {
 	tx, err := st.db.Begin()
 	if err != nil {
 		return tracer.RawSpan{}, err
 	}
 	defer tx.Rollback()
-	return st.spanWithID(tx, id)
+	return st.spanByID(tx, id)
 }
 
-func (st *Storage) spanWithID(tx *sql.Tx, id uint64) (tracer.RawSpan, error) {
+func (st *Storage) spanByID(tx *sql.Tx, id uint64) (tracer.RawSpan, error) {
 	const selectSpan = `
 SELECT spans.id, spans.trace_id, spans.time, spans.service_name, spans.operation_name, tags.key, tags.value, tags.time
 FROM spans
@@ -375,7 +375,7 @@ ORDER BY
 
 	var traces []tracer.RawTrace
 	for _, id := range ids {
-		trace, err := st.traceWithID(tx, uint64(id))
+		trace, err := st.traceByID(tx, uint64(id))
 		if err != nil {
 			return nil, err
 		}

@@ -61,10 +61,10 @@ type Server struct {
 // A Queryer is a backend that allows fetching traces and spans by ID
 // or via a more advanced query.
 type Queryer interface {
-	// TraceWithID returns a trace with a specific ID.
-	TraceWithID(id uint64) (tracer.RawTrace, error)
-	// SpanWithID returns a span with a specific ID.
-	SpanWithID(id uint64) (tracer.RawSpan, error)
+	// TraceByID returns a trace with a specific ID.
+	TraceByID(id uint64) (tracer.RawTrace, error)
+	// SpanByID returns a span with a specific ID.
+	SpanByID(id uint64) (tracer.RawSpan, error)
 	// QueryTraces returns all traces that match a query.
 	QueryTraces(q Query) ([]tracer.RawTrace, error)
 }
