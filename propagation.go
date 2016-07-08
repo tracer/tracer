@@ -31,11 +31,11 @@ func RegisterInjecter(format interface{}, injecter Injecter) {
 }
 
 type SpanContext struct {
-	TraceID  uint64
-	ParentID uint64
-	SpanID   uint64
-	Flags    uint64
-	Baggage  map[string]string
+	TraceID  uint64            `json:"trace_id"`
+	ParentID uint64            `json:"parent_id"`
+	SpanID   uint64            `json:"span_id"`
+	Flags    uint64            `json:"flags"`
+	Baggage  map[string]string `json:"baggage"`
 }
 
 func (c SpanContext) SetBaggageItem(key, value string) opentracing.SpanContext {

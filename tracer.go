@@ -76,13 +76,13 @@ type Span struct {
 // A RawSpan contains all the data associated with a span.
 type RawSpan struct {
 	SpanContext
-	ServiceName   string
-	OperationName string
-	StartTime     time.Time
-	FinishTime    time.Time
+	ServiceName   string    `json:"service_name"`
+	OperationName string    `json:"operation_name"`
+	StartTime     time.Time `json:"start_time"`
+	FinishTime    time.Time `json:"finish_time"`
 
-	Tags map[string]interface{}
-	Logs []opentracing.LogData
+	Tags map[string]interface{} `json:"tags"`
+	Logs []opentracing.LogData  `json:"logs"`
 }
 
 // Sampled reports whether this span was sampled.
