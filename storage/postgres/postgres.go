@@ -260,11 +260,11 @@ func (st *Storage) SpanWithID(id uint64) (tracer.RawSpan, error) {
 
 func (st *Storage) spanWithID(tx *sql.Tx, id uint64) (tracer.RawSpan, error) {
 	const selectSpan = `
-SELECT spans.id, spans.trace_id, spans.time, spans.time, spans.service_name, spans.operation_name, tags.key, tags.value, tags.time
+SELECT spans.id, spans.trace_id, spans.time, spans.service_name, spans.operation_name, tags.key, tags.value, tags.time
 FROM spans
   LEFT JOIN tags
     ON spans.id = tags.span_id
-WHERE id = $1
+WHERE spans.id = $1
 LIMIT 1`
 	rows, err := tx.Query(selectSpan, int64(id))
 	if err != nil {
