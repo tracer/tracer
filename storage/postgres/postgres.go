@@ -13,6 +13,7 @@ import (
 	"github.com/tracer/tracer/storage"
 
 	"github.com/jmoiron/sqlx"
+	_ "github.com/lib/pq"
 	"github.com/opentracing/opentracing-go"
 )
 

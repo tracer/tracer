@@ -12,8 +12,6 @@ import (
 	_ "github.com/tracer/tracer/storage/postgres"
 	"github.com/tracer/tracer/transport"
 	_ "github.com/tracer/tracer/transport/grpc"
-
-	_ "github.com/lib/pq"
 )
 
 func loadStorage(conf config.Config) (tracer.Storer, error) {
