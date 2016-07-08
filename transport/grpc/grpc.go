@@ -8,7 +8,6 @@ import (
 	"github.com/tracer/tracer/pb"
 	"github.com/tracer/tracer/pbutil"
 	"github.com/tracer/tracer/server"
-	"github.com/tracer/tracer/transport"
 
 	"github.com/opentracing/opentracing-go"
 	"golang.org/x/net/context"
@@ -16,10 +15,10 @@ import (
 )
 
 func init() {
-	transport.Register("grpc", setup)
+	server.RegisterStorageTransport("grpc", setup)
 }
 
-func setup(srv *server.Server, conf map[string]interface{}) (transport.Transport, error) {
+func setup(srv *server.Server, conf map[string]interface{}) (server.StorageTransport, error) {
 	listen, ok := conf["listen"].(string)
 	if !ok {
 		return nil, errors.New("missing listen setting for gRPC transport")

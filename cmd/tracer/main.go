@@ -9,7 +9,6 @@ import (
 	"github.com/tracer/tracer/server"
 	"github.com/tracer/tracer/storage"
 	_ "github.com/tracer/tracer/storage/postgres"
-	"github.com/tracer/tracer/transport"
 	_ "github.com/tracer/tracer/transport/grpc"
 )
 
@@ -34,7 +33,7 @@ func listenStorage(srv *server.Server, conf config.Config) error {
 	if err != nil {
 		return err
 	}
-	fn, ok := transport.Get(name)
+	fn, ok := server.GetStorageTransport(name)
 	if !ok {
 		return fmt.Errorf("unsupported storage transport: %s", name)
 	}

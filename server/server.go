@@ -6,6 +6,23 @@ import (
 	"github.com/tracer/tracer"
 )
 
+type StorageTransportEngine func(srv *Server, conf map[string]interface{}) (StorageTransport, error)
+
+var engines = map[string]StorageTransportEngine{}
+
+func RegisterStorageTransport(name string, engine StorageTransportEngine) {
+	engines[name] = engine
+}
+
+func GetStorageTransport(name string) (StorageTransportEngine, bool) {
+	transport, ok := engines[name]
+	return transport, ok
+}
+
+type StorageTransport interface {
+	Start() error
+}
+
 type Storage interface {
 	tracer.Storer
 	Queryer
