@@ -181,6 +181,7 @@ ORDER BY
 	if err != nil {
 		return tracer.RawTrace{}, err
 	}
+	defer rows.Close()
 
 	spans, err := scanSpans(rows)
 	if err != nil {
@@ -270,6 +271,7 @@ LIMIT 1`
 	if err != nil {
 		return tracer.RawSpan{}, err
 	}
+	defer rows.Close()
 	spans, err := scanSpans(rows)
 	if err != nil {
 		return tracer.RawSpan{}, err
@@ -359,6 +361,7 @@ ORDER BY
 	if err != nil {
 		return nil, err
 	}
+	defer rows.Close()
 	var id int64
 	for rows.Next() {
 		if err := rows.Scan(&id); err != nil {
