@@ -1,7 +1,7 @@
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
-CREATE OR REPLACE FUNCTION duration(d tstzrange) RETURNS integer
-       AS 'SELECT (EXTRACT(epoch from upper($1) - lower($1)) * 1e9)::int'
+CREATE OR REPLACE FUNCTION duration(d tstzrange) RETURNS bigint
+       AS 'SELECT (EXTRACT(epoch from upper($1) - lower($1)) * 1e9)::bigint'
        LANGUAGE SQL
        IMMUTABLE
        RETURNS NULL ON NULL INPUT;
