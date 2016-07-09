@@ -67,6 +67,18 @@ type Queryer interface {
 	SpanByID(id uint64) (tracer.RawSpan, error)
 	// QueryTraces returns all traces that match a query.
 	QueryTraces(q Query) ([]tracer.RawTrace, error)
+
+	Services() ([]string, error)
+	// TODO(dh): The current Spans function only really exists because
+	// of the zipkin UI. We might want a QuerySpans instead.
+	Spans(service string) ([]string, error)
+	Dependencies() ([]Dependency, error)
+}
+
+type Dependency struct {
+	Parent string
+	Child  string
+	Count  uint64
 }
 
 // QueryTag describes a single tag or log entry that should be queried

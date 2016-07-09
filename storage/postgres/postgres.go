@@ -410,3 +410,61 @@ ORDER BY
 	}
 	return traces, nil
 }
+
+func (st *Storage) Services() ([]string, error) {
+	const query = `SELECT DISTINCT service_name FROM spans ORDER BY service_name ASC`
+	rows, err := st.db.Query(query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var names []string
+	var name string
+	for rows.Next() {
+		if err := rows.Scan(&name); err != nil {
+			return nil, err
+		}
+		names = append(names, name)
+	}
+	return names, rows.Err()
+}
+
+func (st *Storage) Spans(service string) ([]string, error) {
+	const query = `SELECT DISTINCT operation_name FROM spans WHERE service_name = $1 ORDER BY operation_name ASC`
+	rows, err := st.db.Query(query, service)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var names []string
+	var name string
+	for rows.Next() {
+		if err := rows.Scan(&name); err != nil {
+			return nil, err
+		}
+		names = append(names, name)
+	}
+	return names, rows.Err()
+}
+
+func (st *Storage) Dependencies() ([]server.Dependency, error) {
+	const query = `SELECT name1, name2, count FROM dependencies`
+	rows, err := st.db.Query(query)
+	if err != nil {
+		return nil, err
+	}
+	var deps []server.Dependency
+	for rows.Next() {
+		var name1, name2 string
+		var count int64
+		if err := rows.Scan(&name1, &name2, &count); err != nil {
+			return nil, err
+		}
+		deps = append(deps, server.Dependency{
+			Parent: name1,
+			Child:  name2,
+			Count:  uint64(count),
+		})
+	}
+	return deps, nil
+}

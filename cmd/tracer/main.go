@@ -10,6 +10,7 @@ import (
 	_ "github.com/tracer/tracer/storage/postgres"
 	_ "github.com/tracer/tracer/transport/grpc"
 	_ "github.com/tracer/tracer/transport/http"
+	_ "github.com/tracer/tracer/transport/zipkinhttp"
 )
 
 func loadStorage(conf config.Config) (server.Storage, error) {
