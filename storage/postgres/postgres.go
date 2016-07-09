@@ -231,8 +231,8 @@ func scanSpans(rows *sql.Rows) ([]tracer.RawSpan, error) {
 		spanTime      timeRange
 		serviceName   string
 		operationName string
-		tagKey        string
-		tagValue      string
+		tagKey        sql.NullString
+		tagValue      sql.NullString
 		tagTime       *time.Time
 	)
 	tagTime = new(time.Time)
@@ -256,14 +256,14 @@ func scanSpans(rows *sql.Rows) ([]tracer.RawSpan, error) {
 		span.FinishTime = spanTime.End
 		span.ServiceName = serviceName
 		span.OperationName = operationName
-		if tagKey != "" {
+		if tagKey.String != "" {
 			if tagTime == nil {
-				span.Tags[tagKey] = tagValue
+				span.Tags[tagKey.String] = tagValue.String
 			} else {
 				span.Logs = append(span.Logs, opentracing.LogData{
 					Timestamp: *tagTime,
-					Event:     tagKey,
-					Payload:   tagValue,
+					Event:     tagKey.String,
+					Payload:   tagValue.String,
 				})
 			}
 		}
