@@ -16,6 +16,7 @@ import (
 	"encoding/hex"
 	"log"
 	"reflect"
+	"sync"
 	"time"
 
 	"github.com/opentracing/opentracing-go"
@@ -76,6 +77,7 @@ type RawRelation struct {
 
 // Span is an implementation of the Open Tracing Span interface.
 type Span struct {
+	mu     sync.RWMutex
 	tracer *Tracer
 	RawSpan
 }
@@ -94,17 +96,27 @@ type RawSpan struct {
 
 // Sampled reports whether this span was sampled.
 func (sp *Span) Sampled() bool {
+	sp.mu.RLock()
+	defer sp.mu.RUnlock()
+	return sp.sampled()
+}
+
+func (sp *Span) sampled() bool {
 	return (sp.Flags & FlagSampled) > 0
 }
 
 // SetOperationName sets the span's operation name.
 func (sp *Span) SetOperationName(name string) opentracing.Span {
+	sp.mu.Lock()
+	defer sp.mu.Unlock()
 	sp.OperationName = name
 	return sp
 }
 
 func (sp *Span) SetTag(key string, value interface{}) opentracing.Span {
-	if !sp.Sampled() {
+	sp.mu.Lock()
+	defer sp.mu.Unlock()
+	if !sp.sampled() {
 		return sp
 	}
 	if _, ok := valueType(value); !ok {
@@ -126,7 +138,9 @@ func (sp *Span) Finish() {
 }
 
 func (sp *Span) FinishWithOptions(opts opentracing.FinishOptions) {
-	if !sp.Sampled() {
+	sp.mu.Lock()
+	defer sp.mu.Unlock()
+	if !sp.sampled() {
 		return
 	}
 	if opts.FinishTime.IsZero() {
@@ -134,7 +148,7 @@ func (sp *Span) FinishWithOptions(opts opentracing.FinishOptions) {
 	}
 	sp.FinishTime = opts.FinishTime
 	for _, log := range opts.BulkLogData {
-		sp.Log(log)
+		sp.log(log)
 	}
 	if err := sp.tracer.storer.Store(sp.RawSpan); err != nil {
 		sp.tracer.Logger.Printf("error while storing tracing span: %s", err)
@@ -161,7 +175,13 @@ func (sp *Span) LogEventWithPayload(event string, payload interface{}) {
 }
 
 func (sp *Span) Log(data opentracing.LogData) {
-	if !sp.Sampled() {
+	sp.mu.Lock()
+	defer sp.mu.Unlock()
+	sp.log(data)
+}
+
+func (sp *Span) log(data opentracing.LogData) {
+	if !sp.sampled() {
 		return
 	}
 	if _, ok := valueType(data.Payload); !ok {
@@ -175,10 +195,14 @@ func (sp *Span) Log(data opentracing.LogData) {
 }
 
 func (sp *Span) Context() opentracing.SpanContext {
+	sp.mu.RLock()
+	defer sp.mu.RUnlock()
 	return sp.SpanContext
 }
 
 func (sp *Span) Tracer() opentracing.Tracer {
+	sp.mu.RLock()
+	defer sp.mu.RUnlock()
 	return sp.tracer
 }
 
