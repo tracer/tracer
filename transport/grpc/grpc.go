@@ -45,43 +45,47 @@ func (g *GRPC) Start() error {
 }
 
 func (g *GRPC) Store(ctx context.Context, req *pb.StoreRequest) (*pb.StoreResponse, error) {
-	st, err := pbutil.Timestamp(req.Span.StartTime)
-	if err != nil {
-		return nil, err
-	}
-	ft, err := pbutil.Timestamp(req.Span.FinishTime)
-	if err != nil {
-		return nil, err
-	}
-	sp := tracer.RawSpan{
-		SpanContext: tracer.SpanContext{
-			TraceID:  req.Span.TraceId,
-			ParentID: req.Span.ParentId,
-			SpanID:   req.Span.SpanId,
-			Flags:    req.Span.Flags,
-		},
-		ServiceName:   req.Span.ServiceName,
-		OperationName: req.Span.OperationName,
-		StartTime:     st,
-		FinishTime:    ft,
-		Tags:          map[string]interface{}{},
-	}
-	for _, tag := range req.Span.Tags {
-		if tag.Time != nil {
-			t, err := pbutil.Timestamp(tag.Time)
-			if err != nil {
-				return nil, err
+	for _, span := range req.Spans {
+		st, err := pbutil.Timestamp(span.StartTime)
+		if err != nil {
+			return nil, err
+		}
+		ft, err := pbutil.Timestamp(span.FinishTime)
+		if err != nil {
+			return nil, err
+		}
+		sp := tracer.RawSpan{
+			SpanContext: tracer.SpanContext{
+				TraceID:  span.TraceId,
+				ParentID: span.ParentId,
+				SpanID:   span.SpanId,
+				Flags:    span.Flags,
+			},
+			ServiceName:   span.ServiceName,
+			OperationName: span.OperationName,
+			StartTime:     st,
+			FinishTime:    ft,
+			Tags:          map[string]interface{}{},
+		}
+		for _, tag := range span.Tags {
+			if tag.Time != nil {
+				t, err := pbutil.Timestamp(tag.Time)
+				if err != nil {
+					return nil, err
+				}
+				sp.Logs = append(sp.Logs, opentracing.LogData{
+					Event:     tag.Key,
+					Payload:   tag.Value,
+					Timestamp: t,
+				})
+			} else {
+				sp.Tags[tag.Key] = tag.Value
 			}
-			sp.Logs = append(sp.Logs, opentracing.LogData{
-				Event:     tag.Key,
-				Payload:   tag.Value,
-				Timestamp: t,
-			})
-		} else {
-			sp.Tags[tag.Key] = tag.Value
+		}
+
+		if err := g.srv.Storage.Store(sp); err != nil {
+			return &pb.StoreResponse{}, err
 		}
 	}
-
-	err = g.srv.Storage.Store(sp)
-	return &pb.StoreResponse{}, err
+	return &pb.StoreResponse{}, nil
 }

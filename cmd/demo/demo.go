@@ -12,7 +12,10 @@ import (
 )
 
 func main() {
-	storage, err := tracer.NewGRPC("localhost:9999", grpc.WithInsecure())
+	storage, err := tracer.NewGRPC("localhost:9999", &tracer.GRPCOptions{
+		QueueSize:     1024,
+		FlushInterval: 1,
+	}, grpc.WithInsecure())
 	if err != nil {
 		log.Fatal(err)
 	}

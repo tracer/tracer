@@ -24,7 +24,7 @@ message Tag {
 }
 
 message StoreRequest {
-  Span span = 1;
+  repeated Span spans = 1;
 }
 
 message StoreResponse {
