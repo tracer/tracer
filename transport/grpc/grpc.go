@@ -5,8 +5,8 @@ import (
 	"net"
 
 	"github.com/tracer/tracer"
+	"github.com/tracer/tracer/internal/pbutil"
 	"github.com/tracer/tracer/pb"
-	"github.com/tracer/tracer/pbutil"
 	"github.com/tracer/tracer/server"
 
 	"github.com/opentracing/opentracing-go"
