@@ -50,24 +50,37 @@ func listenStorage(srv *server.Server, conf config.Config) error {
 	return transport.Start()
 }
 
-func listenQueryer(srv *server.Server, conf config.Config) error {
-	name, err := conf.QueryTransport()
+func listenQueryers(srv *server.Server, conf config.Config) error {
+	transports, err := conf.QueryTransports()
 	if err != nil {
 		return err
 	}
-	fn, ok := server.GetQueryTransport(name)
-	if !ok {
-		return fmt.Errorf("unsupported query transport: %s", name)
+	errs := make(chan error, len(transports))
+	for _, name := range transports {
+		fn, ok := server.GetQueryTransport(name)
+		if !ok {
+			return fmt.Errorf("unsupported query transport: %s", name)
+		}
+		transportConf, err := conf.QueryTransportConfig(name)
+		if err != nil {
+			return err
+		}
+		transport, err := fn(srv, transportConf)
+		if err != nil {
+			return err
+		}
+		go func() {
+			errs <- transport.Start()
+		}()
 	}
-	transportConf, err := conf.QueryTransportConfig()
-	if err != nil {
+	for i := 0; i < len(transports); i++ {
+		err := <-errs
+		if err == nil {
+			continue
+		}
 		return err
 	}
-	transport, err := fn(srv, transportConf)
-	if err != nil {
-		return err
-	}
-	return transport.Start()
+	return nil
 }
 
 func main() {
@@ -93,7 +106,7 @@ func main() {
 		}
 	}()
 
-	if err := listenQueryer(srv, conf); err != nil {
+	if err := listenQueryers(srv, conf); err != nil {
 		log.Fatalln("Error running query transport:", err)
 	}
 }

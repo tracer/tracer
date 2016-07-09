@@ -25,7 +25,7 @@ type WrongValueTypeError struct {
 }
 
 func (err WrongValueTypeError) Error() string {
-	return fmt.Sprintf("wrong type for configuration %s; xpected type %s",
+	return fmt.Sprintf("wrong type for configuration %s; expected type %s",
 		err.Key, err.Type)
 }
 
@@ -111,27 +111,31 @@ func (cfg Config) StorageTransportConfig() (map[string]interface{}, error) {
 	return conf, nil
 }
 
-func (cfg Config) QueryTransport() (string, error) {
+func (cfg Config) QueryTransports() ([]string, error) {
 	gen, err := cfg.general()
-	if err != nil {
-		return "", err
-	}
-	transport, ok := gen["query_transport"]
-	if !ok {
-		return "", MissingKeyError("general.query_transport")
-	}
-	s, ok := transport.(string)
-	if !ok {
-		return "", WrongValueTypeError{"general.query_transport", "string"}
-	}
-	return s, nil
-}
-
-func (cfg Config) QueryTransportConfig() (map[string]interface{}, error) {
-	engine, err := cfg.QueryTransport()
 	if err != nil {
 		return nil, err
 	}
+	transport, ok := gen["query_transports"]
+	if !ok {
+		return nil, MissingKeyError("general.query_transports")
+	}
+	s, ok := transport.([]interface{})
+	if !ok {
+		return nil, WrongValueTypeError{"general.query_transports", "[]string"}
+	}
+	var ss []string
+	for _, v := range s {
+		vs, ok := v.(string)
+		if !ok {
+			return nil, WrongValueTypeError{"general.query_transports", "[]string"}
+		}
+		ss = append(ss, vs)
+	}
+	return ss, nil
+}
+
+func (cfg Config) QueryTransportConfig(engine string) (map[string]interface{}, error) {
 	transport, ok := cfg.cfg["query_transport"].(map[string]interface{})
 	if !ok {
 		return nil, MissingSectionError("query_transport")
