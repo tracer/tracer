@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"time"
 
 	"github.com/tracer/tracer"
 
@@ -14,7 +15,7 @@ import (
 func main() {
 	storage, err := tracer.NewGRPC("localhost:9999", &tracer.GRPCOptions{
 		QueueSize:     1024,
-		FlushInterval: 1,
+		FlushInterval: 1 * time.Second,
 	}, grpc.WithInsecure())
 	if err != nil {
 		log.Fatal(err)
@@ -78,4 +79,8 @@ func main() {
 
 	s1.SetTag(string(ext.HTTPStatusCode), 200)
 	s1.Finish()
+
+	// Wait for spans to be flushed. Production code wouldn't need
+	// this.
+	time.Sleep(2 * time.Second)
 }
