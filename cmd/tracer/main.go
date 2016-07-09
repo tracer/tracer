@@ -7,6 +7,7 @@ import (
 
 	"github.com/tracer/tracer/cmd/tracer/config"
 	"github.com/tracer/tracer/server"
+	_ "github.com/tracer/tracer/storage/null"
 	_ "github.com/tracer/tracer/storage/postgres"
 	_ "github.com/tracer/tracer/transport/grpc"
 	_ "github.com/tracer/tracer/transport/http"
