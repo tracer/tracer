@@ -107,14 +107,10 @@ func (g *GRPC) flush() {
 	g.queue = g.queue[0:0]
 }
 
-var dropped int
-
 func (g *GRPC) Store(sp RawSpan) error {
 	select {
 	case g.ch <- sp:
 	default:
-		dropped++
-		fmt.Println("dropped", dropped)
 	}
 	return nil
 }
