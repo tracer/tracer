@@ -2,9 +2,8 @@ package tracer
 
 import (
 	"math/rand"
+	"sync"
 	"time"
-
-	"golang.org/x/time/rate"
 )
 
 // A Sampler determines whether a span should be sampled or not by
@@ -44,14 +43,49 @@ func (p probabilisticSampler) Sample(uint64) bool {
 	return p.rng.Float64() < p.chance
 }
 
+type rateLimiter struct {
+	mu     sync.Mutex
+	rate   int
+	tokens int
+	t      time.Time
+	nowFn  func() time.Time
+}
+
+func newRateLimiter(rate int) *rateLimiter {
+	return &rateLimiter{
+		rate:   rate,
+		tokens: rate,
+		t:      time.Now().Add(time.Second),
+		nowFn:  time.Now,
+	}
+}
+
+func (r *rateLimiter) Allow() bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	add := int((float64(r.nowFn().Sub(r.t).Nanoseconds()/int64(time.Millisecond)) / 1000) * float64(r.rate))
+	if add > 0 {
+		r.tokens = r.tokens + add
+		if r.tokens > r.rate {
+			r.tokens = r.rate
+		}
+		r.t = r.nowFn()
+	}
+	if r.tokens > 0 {
+		r.tokens--
+		return true
+	}
+	return false
+}
+
 type rateSampler struct {
-	l *rate.Limiter
+	l *rateLimiter
 }
 
 // NewRateSampler returns a sampler that samples up to n samples per
 // second.
 func NewRateSampler(n int) Sampler {
-	return rateSampler{rate.NewLimiter(rate.Limit(n), n)}
+	return rateSampler{newRateLimiter(n)}
 }
 
 func (r rateSampler) Sample(uint64) bool {
