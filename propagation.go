@@ -9,17 +9,15 @@ import (
 	"github.com/opentracing/opentracing-go"
 )
 
-// TODO(dh): rename Joiner to Extracter
-
-// A Joiner extracts a SpanContext from carrier.
-type Joiner func(carrier interface{}) (SpanContext, error)
+// An Extracter extracts a SpanContext from carrier.
+type Extracter func(carrier interface{}) (SpanContext, error)
 
 // An Injecter injects a SpanContext into carrier.
 type Injecter func(sm SpanContext, carrier interface{}) error
 
-var joiners = map[interface{}]Joiner{
-	opentracing.TextMap: textJoiner,
-	opentracing.Binary:  binaryJoiner,
+var extracters = map[interface{}]Extracter{
+	opentracing.TextMap: textExtracter,
+	opentracing.Binary:  binaryExtracter,
 }
 
 var injecters = map[interface{}]Injecter{
@@ -27,9 +25,9 @@ var injecters = map[interface{}]Injecter{
 	opentracing.Binary:  binaryInjecter,
 }
 
-// RegisterJoiner registers a Joiner.
-func RegisterJoiner(format interface{}, joiner Joiner) {
-	joiners[format] = joiner
+// RegisterExtracter registers an Extracter.
+func RegisterExtracter(format interface{}, extracter Extracter) {
+	extracters[format] = extracter
 }
 
 // RegisterInjecter registers an Injecter.
@@ -82,7 +80,7 @@ func textInjecter(sm SpanContext, carrier interface{}) error {
 	return nil
 }
 
-func textJoiner(carrier interface{}) (SpanContext, error) {
+func textExtracter(carrier interface{}) (SpanContext, error) {
 	r, ok := carrier.(opentracing.TextMapReader)
 	if !ok {
 		return SpanContext{}, opentracing.ErrInvalidCarrier
@@ -136,7 +134,7 @@ func binaryInjecter(sm SpanContext, carrier interface{}) error {
 	return err
 }
 
-func binaryJoiner(carrier interface{}) (SpanContext, error) {
+func binaryExtracter(carrier interface{}) (SpanContext, error) {
 	r, ok := carrier.(io.Reader)
 	if !ok {
 		return SpanContext{}, opentracing.ErrInvalidCarrier

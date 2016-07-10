@@ -27,7 +27,7 @@ func TestText(t *testing.T) {
 	if err := textInjecter(sp.Context().(SpanContext), carrier); err != nil {
 		t.Fatal("unexpected error: ", err)
 	}
-	context, err := textJoiner(carrier)
+	context, err := textExtracter(carrier)
 	if err != nil {
 		t.Fatal("unexpected error: ", err)
 	}
@@ -59,7 +59,7 @@ func TestBinary(t *testing.T) {
 	if err := binaryInjecter(sp.Context().(SpanContext), buf); err != nil {
 		t.Fatal("unexpected error: ", err)
 	}
-	context, err := binaryJoiner(buf)
+	context, err := binaryExtracter(buf)
 	if err != nil {
 		t.Fatal("unexpected error: ", err)
 	}

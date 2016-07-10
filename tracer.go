@@ -317,11 +317,11 @@ func (tr *Tracer) Inject(sm opentracing.SpanContext, format interface{}, carrier
 
 // Extract implements the opentracing.Tracer interface.
 func (tr *Tracer) Extract(format interface{}, carrier interface{}) (opentracing.SpanContext, error) {
-	joiner, ok := joiners[format]
+	extracter, ok := extracters[format]
 	if !ok {
 		return nil, opentracing.ErrUnsupportedFormat
 	}
-	context, err := joiner(carrier)
+	context, err := extracter(carrier)
 	return context, err
 }
 
