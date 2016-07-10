@@ -31,6 +31,7 @@ import (
 	"time"
 
 	"github.com/opentracing/opentracing-go"
+	"github.com/opentracing/opentracing-go/ext"
 )
 
 // The various flags of a Span.
@@ -283,7 +284,9 @@ func (tr *Tracer) StartSpan(operationName string, opts ...opentracing.StartSpanO
 		sp.TraceID = parent.TraceID
 		sp.Flags = parent.Flags
 	} else {
-		if tr.Sampler.Sample(id) {
+		if n, _ := sopts.Tags[string(ext.SamplingPriority)].(uint16); n > 0 {
+			sp.Flags |= FlagSampled
+		} else if tr.Sampler.Sample(id) {
 			sp.Flags |= FlagSampled
 		}
 	}
