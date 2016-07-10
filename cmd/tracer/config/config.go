@@ -1,3 +1,4 @@
+// Package config parses Tracer configuration files.
 package config
 
 import (
@@ -7,18 +8,23 @@ import (
 	"github.com/BurntSushi/toml"
 )
 
+// MissingSectionError is returned when a configuration section is
+// missing.
 type MissingSectionError string
 
 func (err MissingSectionError) Error() string {
 	return fmt.Sprintf("missing configuration section: %s", string(err))
 }
 
+// MissingKeyError is returned when a configuration key is missing.
 type MissingKeyError string
 
 func (err MissingKeyError) Error() string {
 	return fmt.Sprintf("missing configuration key: %s", string(err))
 }
 
+// WrongValueTypeError is returned when a configuration key has the
+// wrong type.
 type WrongValueTypeError struct {
 	Key  string
 	Type string
@@ -29,10 +35,12 @@ func (err WrongValueTypeError) Error() string {
 		err.Key, err.Type)
 }
 
+// Config is the Tracer configuration file.
 type Config struct {
 	cfg map[string]interface{}
 }
 
+// Load loads a configuration file.
 func Load(r io.Reader) (Config, error) {
 	cfg := Config{map[string]interface{}{}}
 	_, err := toml.DecodeReader(r, &cfg.cfg)
@@ -47,6 +55,7 @@ func (cfg Config) general() (map[string]interface{}, error) {
 	return gen, nil
 }
 
+// Storage returns the name of the storage engine.
 func (cfg Config) Storage() (string, error) {
 	gen, err := cfg.general()
 	if err != nil {
@@ -63,6 +72,7 @@ func (cfg Config) Storage() (string, error) {
 	return s, nil
 }
 
+// StorageConfig returns the configuration of the storage engine.
 func (cfg Config) StorageConfig() (map[string]interface{}, error) {
 	engine, err := cfg.Storage()
 	if err != nil {
@@ -79,6 +89,7 @@ func (cfg Config) StorageConfig() (map[string]interface{}, error) {
 	return conf, nil
 }
 
+// StorageTransport returns the name of the storage transport.
 func (cfg Config) StorageTransport() (string, error) {
 	gen, err := cfg.general()
 	if err != nil {
@@ -95,6 +106,7 @@ func (cfg Config) StorageTransport() (string, error) {
 	return s, nil
 }
 
+// StorageTransportConfig returns the configuration of the storage transport.
 func (cfg Config) StorageTransportConfig() (map[string]interface{}, error) {
 	engine, err := cfg.StorageTransport()
 	if err != nil {
@@ -111,6 +123,7 @@ func (cfg Config) StorageTransportConfig() (map[string]interface{}, error) {
 	return conf, nil
 }
 
+// QueryTransports returns the names of the query transports.
 func (cfg Config) QueryTransports() ([]string, error) {
 	gen, err := cfg.general()
 	if err != nil {
@@ -135,6 +148,7 @@ func (cfg Config) QueryTransports() ([]string, error) {
 	return ss, nil
 }
 
+// QueryTransportConfig returns the configuration of a query transport.
 func (cfg Config) QueryTransportConfig(engine string) (map[string]interface{}, error) {
 	transport, ok := cfg.cfg["query_transport"].(map[string]interface{})
 	if !ok {

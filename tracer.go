@@ -1,13 +1,24 @@
 // Package tracer implements a Dapper-style tracing system. It is
 // compatible with the Open Tracing specification.
 //
+// Sampling
+//
+// To keep the overhead incurred by tracing low, only a subset of
+// requests should be traced. This is achieved by a sampler. Each
+// tracer has a sampler that may sample requests based on chance, a
+// rate, or possibly other mechanisms. The default sampler samples all
+// requests, which is useful for testing, and viable for low-traffic
+// systems.
+//
+// Only root spans make sampling decisions. Child spans will inherit
+// the sampling decisions of the root spans.
+//
 // Errors and logging
 //
 // The instrumentation is defensive and will never purposefully panic.
 // At the same time, most functions do not return errors, because
 // they'll be called by automatic instrumentation, hidden from the
-// user. Instead, errors will be logged. The logger can be changed by
-// assigning to the Logger field in Tracer.
+// user. Instead, errors will be logged.
 package tracer
 
 import (
@@ -22,7 +33,9 @@ import (
 	"github.com/opentracing/opentracing-go"
 )
 
+// The various flags of a Span.
 const (
+	// The Span has been sampled.
 	FlagSampled = 1 << iota
 )
 
@@ -69,6 +82,7 @@ type RawTrace struct {
 	Relations []RawRelation `json:"relations"`
 }
 
+// A RawRelation represents the relation between two spans.
 type RawRelation struct {
 	ParentID uint64 `json:"parent_id"`
 	ChildID  uint64 `json:"child_id"`
@@ -105,7 +119,7 @@ func (sp *Span) sampled() bool {
 	return (sp.Flags & FlagSampled) > 0
 }
 
-// SetOperationName sets the span's operation name.
+// SetOperationName implements the opentracing.Span interface.
 func (sp *Span) SetOperationName(name string) opentracing.Span {
 	sp.mu.Lock()
 	defer sp.mu.Unlock()
@@ -113,6 +127,7 @@ func (sp *Span) SetOperationName(name string) opentracing.Span {
 	return sp
 }
 
+// SetTag implements the opentracing.Span interface.
 func (sp *Span) SetTag(key string, value interface{}) opentracing.Span {
 	sp.mu.Lock()
 	defer sp.mu.Unlock()
@@ -130,6 +145,7 @@ func (sp *Span) SetTag(key string, value interface{}) opentracing.Span {
 	return sp
 }
 
+// Finish implements the opentracing.Span interface.
 func (sp *Span) Finish() {
 	if !sp.Sampled() {
 		return
@@ -137,6 +153,7 @@ func (sp *Span) Finish() {
 	sp.FinishWithOptions(opentracing.FinishOptions{})
 }
 
+// FinishWithOptions implements the opentracing.Span interface.
 func (sp *Span) FinishWithOptions(opts opentracing.FinishOptions) {
 	sp.mu.Lock()
 	defer sp.mu.Unlock()
@@ -155,6 +172,7 @@ func (sp *Span) FinishWithOptions(opts opentracing.FinishOptions) {
 	}
 }
 
+// LogEvent implements the opentracing.Span interface.
 func (sp *Span) LogEvent(event string) {
 	if !sp.Sampled() {
 		return
@@ -164,6 +182,7 @@ func (sp *Span) LogEvent(event string) {
 	})
 }
 
+// LogEventWithPayload implements the opentracing.Span interface.
 func (sp *Span) LogEventWithPayload(event string, payload interface{}) {
 	if !sp.Sampled() {
 		return
@@ -174,6 +193,7 @@ func (sp *Span) LogEventWithPayload(event string, payload interface{}) {
 	})
 }
 
+// Log implements the opentracing.Span interface.
 func (sp *Span) Log(data opentracing.LogData) {
 	sp.mu.Lock()
 	defer sp.mu.Unlock()
@@ -194,12 +214,14 @@ func (sp *Span) log(data opentracing.LogData) {
 	sp.Logs = append(sp.Logs, data)
 }
 
+// Context implements the opentracing.Span interface.
 func (sp *Span) Context() opentracing.SpanContext {
 	sp.mu.RLock()
 	defer sp.mu.RUnlock()
 	return sp.SpanContext
 }
 
+// Tracer implements the opentracing.Span interface.
 func (sp *Span) Tracer() opentracing.Tracer {
 	sp.mu.RLock()
 	defer sp.mu.RUnlock()
@@ -216,6 +238,7 @@ type Tracer struct {
 	idGenerator IDGenerator
 }
 
+// NewTracer returns a new tracer.
 func NewTracer(serviceName string, storer Storer, idGenerator IDGenerator) *Tracer {
 	return &Tracer{
 		ServiceName: serviceName,
@@ -226,6 +249,7 @@ func NewTracer(serviceName string, storer Storer, idGenerator IDGenerator) *Trac
 	}
 }
 
+// StartSpan implements the opentracing.Tracer interface.
 func (tr *Tracer) StartSpan(operationName string, opts ...opentracing.StartSpanOption) opentracing.Span {
 	var sopts opentracing.StartSpanOptions
 	for _, opt := range opts {
@@ -278,6 +302,7 @@ func idFromHex(s string) uint64 {
 	return binary.BigEndian.Uint64(b)
 }
 
+// Inject implements the opentracing.Tracer interface.
 func (tr *Tracer) Inject(sm opentracing.SpanContext, format interface{}, carrier interface{}) error {
 	context, ok := sm.(SpanContext)
 	if !ok {
@@ -290,6 +315,7 @@ func (tr *Tracer) Inject(sm opentracing.SpanContext, format interface{}, carrier
 	return injecter(context, carrier)
 }
 
+// Extract implements the opentracing.Tracer interface.
 func (tr *Tracer) Extract(format interface{}, carrier interface{}) (opentracing.SpanContext, error) {
 	joiner, ok := joiners[format]
 	if !ok {

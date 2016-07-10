@@ -11,6 +11,7 @@ import (
 	"google.golang.org/grpc"
 )
 
+// GRPC is a gRPC-based transport for sending spans to a server.
 type GRPC struct {
 	client        pb.StorerClient
 	queue         []RawSpan
@@ -18,11 +19,18 @@ type GRPC struct {
 	flushInterval time.Duration
 }
 
+// GRPCOptions are options for the GRPC storer.
 type GRPCOptions struct {
-	QueueSize     int
+	// How many spans to queue before sending them to the server.
+	// Additionally, a buffer the size of 2*QueueSize will be used to
+	// process new spans. If this buffer runs full, new spans will be
+	// dropped.
+	QueueSize int
+	// How often to flush spans, even if the queue isn't full yet.
 	FlushInterval time.Duration
 }
 
+// NewGRPC returns a new Storer that sends spans via gRPC to a server.
 func NewGRPC(address string, grpcOpts *GRPCOptions, opts ...grpc.DialOption) (Storer, error) {
 	if grpcOpts == nil {
 		grpcOpts = &GRPCOptions{1024, 1 * time.Second}
@@ -107,6 +115,7 @@ func (g *GRPC) flush() {
 	g.queue = g.queue[0:0]
 }
 
+// Store implements the tracer.Storer interface.
 func (g *GRPC) Store(sp RawSpan) error {
 	select {
 	case g.ch <- sp:

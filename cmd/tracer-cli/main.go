@@ -1,3 +1,4 @@
+// Command tracer-cli provides a CLI query client.
 package main
 
 import (

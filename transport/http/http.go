@@ -1,3 +1,4 @@
+// Package http is an HTTP-based query transport.
 package http
 
 import (
@@ -36,6 +37,7 @@ type HTTP struct {
 	mux    *http.ServeMux
 }
 
+// Start implements the server.QueryTransport interface.
 func (h *HTTP) Start() error {
 	return http.ListenAndServe(h.listen, h.mux)
 }

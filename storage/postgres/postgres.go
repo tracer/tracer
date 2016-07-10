@@ -1,3 +1,4 @@
+// Package postgres is a PostgreSQL storage.
 package postgres
 
 import (
@@ -13,7 +14,7 @@ import (
 	"github.com/tracer/tracer/server"
 
 	"github.com/jmoiron/sqlx"
-	_ "github.com/lib/pq"
+	_ "github.com/lib/pq" // load the postgres driver
 	"github.com/opentracing/opentracing-go"
 )
 
@@ -74,14 +75,17 @@ func (t timeRange) Value() (driver.Value, error) {
 	return []byte(fmt.Sprintf(`["%s","%s"]`, t.Start.Format(layout), t.End.Format(layout))), nil
 }
 
+// Storage is a PostgreSQL storage.
 type Storage struct {
 	db *sqlx.DB
 }
 
+// New returns a new PostgreSQL storage.
 func New(db *sql.DB) *Storage {
 	return &Storage{db: sqlx.NewDb(db, "postgres")}
 }
 
+// Store implements the server.Storage interface.
 func (st *Storage) Store(sp tracer.RawSpan) (err error) {
 	const upsertSpan = `
 INSERT INTO spans (id, trace_id, time, service_name, operation_name)
@@ -158,6 +162,7 @@ ON CONFLICT (id) DO
 	return nil
 }
 
+// TraceByID implements the server.Storage interface.
 func (st *Storage) TraceByID(id uint64) (tracer.RawTrace, error) {
 	tx, err := st.db.Begin()
 	if err != nil {
@@ -277,6 +282,7 @@ func scanSpans(rows *sql.Rows) ([]tracer.RawSpan, error) {
 	return spans, nil
 }
 
+// SpanByID implements the server.Storage interface.
 func (st *Storage) SpanByID(id uint64) (tracer.RawSpan, error) {
 	tx, err := st.db.Begin()
 	if err != nil {
@@ -309,6 +315,7 @@ LIMIT 1`
 	return spans[0], nil
 }
 
+// QueryTraces implements the server.Storage interface.
 func (st *Storage) QueryTraces(q server.Query) ([]tracer.RawTrace, error) {
 	tx, err := st.db.Begin()
 	if err != nil {
@@ -411,6 +418,7 @@ ORDER BY
 	return traces, nil
 }
 
+// Services implements the server.Storage interface.
 func (st *Storage) Services() ([]string, error) {
 	const query = `SELECT DISTINCT service_name FROM spans ORDER BY service_name ASC`
 	rows, err := st.db.Query(query)
@@ -429,6 +437,7 @@ func (st *Storage) Services() ([]string, error) {
 	return names, rows.Err()
 }
 
+// Spans implements the server.Storage interface.
 func (st *Storage) Spans(service string) ([]string, error) {
 	const query = `SELECT DISTINCT operation_name FROM spans WHERE service_name = $1 ORDER BY operation_name ASC`
 	rows, err := st.db.Query(query, service)
@@ -447,6 +456,7 @@ func (st *Storage) Spans(service string) ([]string, error) {
 	return names, rows.Err()
 }
 
+// Dependencies implements the server.Storage interface.
 func (st *Storage) Dependencies() ([]server.Dependency, error) {
 	const query = `SELECT name1, name2, count FROM dependencies`
 	rows, err := st.db.Query(query)

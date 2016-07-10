@@ -9,7 +9,12 @@ import (
 	"github.com/opentracing/opentracing-go"
 )
 
+// TODO(dh): rename Joiner to Extracter
+
+// A Joiner extracts a SpanContext from carrier.
 type Joiner func(carrier interface{}) (SpanContext, error)
+
+// An Injecter injects a SpanContext into carrier.
 type Injecter func(sm SpanContext, carrier interface{}) error
 
 var joiners = map[interface{}]Joiner{
@@ -22,14 +27,18 @@ var injecters = map[interface{}]Injecter{
 	opentracing.Binary:  binaryInjecter,
 }
 
+// RegisterJoiner registers a Joiner.
 func RegisterJoiner(format interface{}, joiner Joiner) {
 	joiners[format] = joiner
 }
 
+// RegisterInjecter registers an Injecter.
 func RegisterInjecter(format interface{}, injecter Injecter) {
 	injecters[format] = injecter
 }
 
+// SpanContext contains the parts of a span that will be sent to
+// downstream services.
 type SpanContext struct {
 	TraceID  uint64            `json:"trace_id"`
 	ParentID uint64            `json:"parent_id"`
@@ -38,15 +47,18 @@ type SpanContext struct {
 	Baggage  map[string]string `json:"baggage"`
 }
 
+// SetBaggageItem implements the opentracing.Tracer interface.
 func (c SpanContext) SetBaggageItem(key, value string) opentracing.SpanContext {
 	c.Baggage[key] = value
 	return c
 }
 
+// BaggageItem implements the opentracing.Tracer interface.
 func (c SpanContext) BaggageItem(key string) string {
 	return c.Baggage[key]
 }
 
+// ForeachBaggageItem implements the opentracing.Tracer interface.
 func (c SpanContext) ForeachBaggageItem(handler func(k, v string) bool) {
 	for k, v := range c.Baggage {
 		if !handler(k, v) {

@@ -1,3 +1,5 @@
+// Package zipkinhttp is an HTTP-based query transport that implements
+// the Zipkin v1 API.
 package zipkinhttp
 
 import (
@@ -44,6 +46,7 @@ type HTTP struct {
 	mux    *http.ServeMux
 }
 
+// Start implements the server.QueryTransport interface.
 func (h *HTTP) Start() error {
 	return http.ListenAndServe(h.listen, h.mux)
 }

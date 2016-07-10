@@ -1,3 +1,4 @@
+// Package grpc is a gRPC-based storage transport.
 package grpc
 
 import (
@@ -34,6 +35,7 @@ type GRPC struct {
 	listen string
 }
 
+// Start implements the server.StorageTransport interface.
 func (g *GRPC) Start() error {
 	l, err := net.Listen("tcp", g.listen)
 	if err != nil {

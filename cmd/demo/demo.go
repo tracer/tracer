@@ -1,3 +1,4 @@
+// Command demo creates an example trace.
 package main
 
 import (

@@ -1,3 +1,4 @@
+// Command tracer is the Tracer query and storage server.
 package main
 
 import (

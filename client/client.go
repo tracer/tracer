@@ -1,3 +1,4 @@
+// Package client is a client for the HTTP query transport.
 package client
 
 import (
@@ -13,11 +14,13 @@ type spanResponse struct {
 	Span  tracer.RawSpan `json:"span"`
 }
 
+// A QueryClient is an instance of a query client.
 type QueryClient struct {
 	host   string
 	client *http.Client
 }
 
+// NewQueryClient returns a new query client.
 func NewQueryClient(host string) *QueryClient {
 	return &QueryClient{
 		host:   host,
@@ -25,6 +28,7 @@ func NewQueryClient(host string) *QueryClient {
 	}
 }
 
+// SpanByID returns a span given its ID.
 func (q *QueryClient) SpanByID(id uint64) (tracer.RawSpan, error) {
 	req, err := http.NewRequest("GET", fmt.Sprintf("%s/span/?id=%016x", q.host, id), nil)
 	if err != nil {
@@ -48,6 +52,7 @@ func (q *QueryClient) SpanByID(id uint64) (tracer.RawSpan, error) {
 	return sr, nil
 }
 
+// TraceByID returns a trace given its ID.
 func (q *QueryClient) TraceByID(id uint64) (tracer.RawTrace, error) {
 	req, err := http.NewRequest("GET", fmt.Sprintf("%s/trace/?id=%016x", q.host, id), nil)
 	if err != nil {
