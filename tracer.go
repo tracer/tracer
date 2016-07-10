@@ -1,5 +1,5 @@
 // Package tracer implements a Dapper-style tracing system. It is
-// compatible with the Open Tracing specification.
+// compatible with the OpenTracing specification.
 //
 // Sampling
 //
@@ -89,7 +89,7 @@ type RawRelation struct {
 	Kind     string `json:"kind"`
 }
 
-// Span is an implementation of the Open Tracing Span interface.
+// Span is an implementation of the OpenTracing Span interface.
 type Span struct {
 	mu     sync.RWMutex
 	tracer *Tracer
@@ -228,7 +228,7 @@ func (sp *Span) Tracer() opentracing.Tracer {
 	return sp.tracer
 }
 
-// Tracer is an implementation of the Open Tracing Tracer interface.
+// Tracer is an implementation of the OpenTracing Tracer interface.
 type Tracer struct {
 	ServiceName string
 	Logger      Logger
