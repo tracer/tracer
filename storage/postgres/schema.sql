@@ -27,6 +27,7 @@ CREATE TABLE tags (
        time timestamp with time zone NULL
 );
 
+CREATE INDEX idx_tags_trace_id ON tags (trace_id);
 CREATE INDEX idx_tags_span_id ON tags (span_id);
 CREATE INDEX idx_tags_key_value ON tags (key, value);
 
