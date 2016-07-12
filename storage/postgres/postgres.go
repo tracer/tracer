@@ -38,6 +38,7 @@ func setup(conf map[string]interface{}) (server.Storage, error) {
 }
 
 var _ server.Storage = (*Storage)(nil)
+var _ server.Purger = (*Storage)(nil)
 
 // timeRange represents a PostgreSQL tstzrange. Caveat: it only
 // supports inclusive ranges.
@@ -494,4 +495,17 @@ func (st *Storage) Dependencies() ([]server.Dependency, error) {
 		})
 	}
 	return deps, nil
+}
+
+func (st *Storage) Purge(before time.Time) error {
+	const query = `
+DELETE FROM spans WHERE trace_id IN (SELECT trace_id
+FROM spans
+WHERE
+  id = trace_id AND
+  LOWER(time) < $1)
+`
+
+	_, err := st.db.Exec(query, before)
+	return err
 }

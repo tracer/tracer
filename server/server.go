@@ -72,6 +72,11 @@ type Storage interface {
 	Queryer
 }
 
+// A Purger can delete all traces starting before a certain date.
+type Purger interface {
+	Purge(before time.Time) error
+}
+
 // Server is an instance of the Tracer application.
 type Server struct {
 	Storage Storage
