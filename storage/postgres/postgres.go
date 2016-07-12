@@ -363,7 +363,23 @@ func (st *Storage) QueryTraces(q server.Query) ([]tracer.RawTrace, error) {
 		conds = append(conds, or)
 	}
 
-	query := st.db.Rebind(`
+	var query string
+	if len(conds) == 1 {
+		query = st.db.Rebind(`
+SELECT spans.trace_id
+FROM spans
+WHERE
+  ? @> spans.time AND
+  (? = '' OR operation_name = ?) AND
+  DURATION(time) >= ? AND
+  DURATION(time) <= ? AND
+  spans.id = spans.trace_id
+ORDER BY
+  spans.time ASC,
+  spans.trace_id
+`)
+	} else {
+		query = st.db.Rebind(`
 SELECT spans.trace_id
 FROM spans
 WHERE
@@ -383,6 +399,7 @@ ORDER BY
   spans.time ASC,
   spans.trace_id
 `)
+	}
 	args := make([]interface{}, 0, len(andArgs)+len(orArgs))
 	args = append(args, andArgs...)
 	args = append(args, orArgs...)
