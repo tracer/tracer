@@ -334,6 +334,9 @@ func (st *Storage) QueryTraces(q server.Query) ([]tracer.RawTrace, error) {
 	if q.MaxDuration == 0 {
 		q.MaxDuration = 1<<31 - 1
 	}
+	if q.Num == 0 {
+		q.Num = 1<<31 - 1
+	}
 	for _, tag := range q.AndTags {
 		if tag.CheckValue {
 			andConds = append(andConds, `(tags.key = ? AND tags.value = ?)`)
@@ -367,7 +370,8 @@ func (st *Storage) QueryTraces(q server.Query) ([]tracer.RawTrace, error) {
 	var query string
 	if len(conds) == 1 {
 		query = st.db.Rebind(`
-SELECT spans.trace_id
+SELECT sub.trace_id FROM (
+SELECT *
 FROM spans
 WHERE
   ? @> spans.time AND
@@ -376,12 +380,15 @@ WHERE
   DURATION(time) <= ? AND
   spans.id = spans.trace_id
 ORDER BY
-  spans.time ASC,
+  spans.time DESC,
   spans.trace_id
+LIMIT ?) AS sub
+ORDER BY sub.time ASC, sub.trace_id
 `)
 	} else {
 		query = st.db.Rebind(`
-SELECT spans.trace_id
+SELECT sub.trace_id FROM (
+SELECT *
 FROM spans
 WHERE
   EXISTS (
@@ -397,8 +404,11 @@ WHERE
   DURATION(time) <= ? AND
   spans.id = spans.trace_id
 ORDER BY
-  spans.time ASC,
+  spans.time DESC,
   spans.trace_id
+LIMIT ?) AS sub
+ORDER BY sub.time ASC, sub.trace_id
+)
 `)
 	}
 	args := make([]interface{}, 0, len(andArgs)+len(orArgs))
@@ -407,6 +417,7 @@ ORDER BY
 	args = append(args, timeRange{q.StartTime, q.FinishTime})
 	args = append(args, q.OperationName, q.OperationName)
 	args = append(args, int64(q.MinDuration), int64(q.MaxDuration))
+	args = append(args, q.Num)
 
 	var ids []int64
 	rows, err := st.db.Query(query, args...)

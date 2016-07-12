@@ -197,6 +197,7 @@ func (h *HTTP) Traces(w http.ResponseWriter, r *http.Request) {
 		MaxDuration:   maxDuration,
 		AndTags:       nil,
 		OrTags:        nil,
+		Num:           limit,
 	})
 	if err != nil {
 		http.Error(w, err.Error(), 500)
@@ -206,9 +207,6 @@ func (h *HTTP) Traces(w http.ResponseWriter, r *http.Request) {
 	for _, trace := range traces {
 		ztrace := traceToZipkin(trace)
 		out = append(out, ztrace)
-	}
-	if len(out) > limit {
-		out = out[len(out)-limit:]
 	}
 	_ = json.NewEncoder(w).Encode(out)
 }

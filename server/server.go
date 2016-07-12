@@ -138,4 +138,6 @@ type Query struct {
 	// Only return traces where all spans combined have at least one
 	// of these tags.
 	OrTags []QueryTag
+	// How many traces to return. Zero means no limit.
+	Num int
 }
