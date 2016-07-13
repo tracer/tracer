@@ -31,7 +31,7 @@ go get github.com/tracer/tracer-ui/cmd/tracer-ui
 ### Configuration
 
 Create a PostgreSQL user and schema for Tracer and import the file
-`$GOPATH/src/github.com/tracer/tracer/storage/postgresql/schema.sql`.
+`$GOPATH/src/github.com/tracer/tracer/storage/postgres/schema.sql`.
 The example configuration uses the username and password `tracer` and
 the database `postgres`, but you're free to edit the config.
 
