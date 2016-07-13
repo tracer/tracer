@@ -32,7 +32,7 @@ func setup(conf map[string]interface{}) (server.Storage, error) {
 		return nil, err
 	}
 	if err := db.Ping(); err != nil {
-		return nil, fmt.Errorf("drror connecting to PostgreSQL database: %s", err)
+		return nil, fmt.Errorf("error connecting to PostgreSQL database: %s", err)
 	}
 	return New(db), nil
 }
