@@ -47,27 +47,35 @@ func Load(r io.Reader) (Config, error) {
 	return cfg, err
 }
 
-func (cfg Config) general() (map[string]interface{}, error) {
-	gen, ok := cfg.cfg["general"].(map[string]interface{})
+func (cfg Config) storage() (map[string]interface{}, error) {
+	gen, ok := cfg.cfg["storage"].(map[string]interface{})
 	if !ok {
-		return nil, MissingSectionError("general")
+		return nil, MissingSectionError("storage")
+	}
+	return gen, nil
+}
+
+func (cfg Config) query() (map[string]interface{}, error) {
+	gen, ok := cfg.cfg["query"].(map[string]interface{})
+	if !ok {
+		return nil, MissingSectionError("query")
 	}
 	return gen, nil
 }
 
 // Storage returns the name of the storage engine.
 func (cfg Config) Storage() (string, error) {
-	gen, err := cfg.general()
+	storage, err := cfg.storage()
 	if err != nil {
 		return "", err
 	}
-	storage, ok := gen["storage"]
+	engine, ok := storage["engine"]
 	if !ok {
-		return "", MissingKeyError("general.storage")
+		return "", MissingKeyError("storage.engine")
 	}
-	s, ok := storage.(string)
+	s, ok := engine.(string)
 	if !ok {
-		return "", WrongValueTypeError{"general.storage", "string"}
+		return "", WrongValueTypeError{"storage.engine", "string"}
 	}
 	return s, nil
 }
@@ -91,17 +99,17 @@ func (cfg Config) StorageConfig() (map[string]interface{}, error) {
 
 // StorageTransport returns the name of the storage transport.
 func (cfg Config) StorageTransport() (string, error) {
-	gen, err := cfg.general()
+	storage, err := cfg.storage()
 	if err != nil {
 		return "", err
 	}
-	transport, ok := gen["storage_transport"]
+	transport, ok := storage["transport"]
 	if !ok {
-		return "", MissingKeyError("general.storage_transport")
+		return "", MissingKeyError("storage.transport")
 	}
 	s, ok := transport.(string)
 	if !ok {
-		return "", WrongValueTypeError{"general.storage_transport", "string"}
+		return "", WrongValueTypeError{"storage.transport", "string"}
 	}
 	return s, nil
 }
@@ -112,36 +120,36 @@ func (cfg Config) StorageTransportConfig() (map[string]interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
-	transport, ok := cfg.cfg["storage_transport"].(map[string]interface{})
+	transport, ok := cfg.cfg["storage"].(map[string]interface{})
 	if !ok {
-		return nil, MissingSectionError("storage_transport")
+		return nil, MissingSectionError("storage")
 	}
 	conf, ok := transport[engine].(map[string]interface{})
 	if !ok {
-		return nil, MissingSectionError("storage_transport." + engine)
+		return nil, MissingSectionError("storage." + engine)
 	}
 	return conf, nil
 }
 
 // QueryTransports returns the names of the query transports.
 func (cfg Config) QueryTransports() ([]string, error) {
-	gen, err := cfg.general()
+	query, err := cfg.query()
 	if err != nil {
 		return nil, err
 	}
-	transport, ok := gen["query_transports"]
+	transport, ok := query["transports"]
 	if !ok {
-		return nil, MissingKeyError("general.query_transports")
+		return nil, MissingKeyError("query.transports")
 	}
 	s, ok := transport.([]interface{})
 	if !ok {
-		return nil, WrongValueTypeError{"general.query_transports", "[]string"}
+		return nil, WrongValueTypeError{"query.transports", "[]string"}
 	}
 	var ss []string
 	for _, v := range s {
 		vs, ok := v.(string)
 		if !ok {
-			return nil, WrongValueTypeError{"general.query_transports", "[]string"}
+			return nil, WrongValueTypeError{"query.transports", "[]string"}
 		}
 		ss = append(ss, vs)
 	}
@@ -150,13 +158,13 @@ func (cfg Config) QueryTransports() ([]string, error) {
 
 // QueryTransportConfig returns the configuration of a query transport.
 func (cfg Config) QueryTransportConfig(engine string) (map[string]interface{}, error) {
-	transport, ok := cfg.cfg["query_transport"].(map[string]interface{})
+	transport, ok := cfg.cfg["query"].(map[string]interface{})
 	if !ok {
-		return nil, MissingSectionError("query_transport")
+		return nil, MissingSectionError("query")
 	}
 	conf, ok := transport[engine].(map[string]interface{})
 	if !ok {
-		return nil, MissingSectionError("query_transport." + engine)
+		return nil, MissingSectionError("query." + engine)
 	}
 	return conf, nil
 }
