@@ -2,6 +2,7 @@
 package server
 
 import (
+	"strings"
 	"time"
 
 	"github.com/tracer/tracer"
@@ -77,11 +78,6 @@ type Purger interface {
 	Purge(before time.Time) error
 }
 
-// Server is an instance of the Tracer application.
-type Server struct {
-	Storage Storage
-}
-
 // A Queryer is a backend that allows fetching traces and spans by ID
 // or via a more advanced query.
 type Queryer interface {
@@ -140,4 +136,46 @@ type Query struct {
 	OrTags []QueryTag
 	// How many traces to return. Zero means no limit.
 	Num int
+}
+
+// Server is an instance of the Tracer application.
+type Server struct {
+	Storage          Storage
+	StorageTransport StorageTransport
+	QueryTransports  []QueryTransport
+}
+
+type errors struct {
+	errs []error
+}
+
+func (errs errors) Error() string {
+	var s []string
+	for _, err := range errs.errs {
+		s = append(s, err.Error())
+	}
+	return strings.Join(s, "\n")
+}
+
+func (srv *Server) Start() error {
+	errs := make(chan error)
+	go func() {
+		errs <- srv.StorageTransport.Start()
+	}()
+	for _, t := range srv.QueryTransports {
+		t := t
+		go func() {
+			errs <- t.Start()
+		}()
+	}
+	var out errors
+	for i := 0; i < len(srv.QueryTransports)+1; i++ {
+		if err := <-errs; err != nil {
+			out.errs = append(out.errs, err)
+		}
+	}
+	if len(out.errs) == 0 {
+		return nil
+	}
+	return out
 }

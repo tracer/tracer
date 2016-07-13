@@ -31,57 +31,46 @@ func loadStorage(conf config.Config) (server.Storage, error) {
 	return storer(storageConf)
 }
 
-func listenStorage(srv *server.Server, conf config.Config) error {
+func loadStorageTransport(srv *server.Server, conf config.Config) (server.StorageTransport, error) {
 	name, err := conf.StorageTransport()
 	if err != nil {
-		return err
+		return nil, err
 	}
 	fn, ok := server.GetStorageTransport(name)
 	if !ok {
-		return fmt.Errorf("unsupported storage transport: %s", name)
+		return nil, fmt.Errorf("unsupported storage transport: %s", name)
 	}
 	transportConf, err := conf.StorageTransportConfig()
 	if err != nil {
-		return err
+		return nil, err
 	}
-	transport, err := fn(srv, transportConf)
-	if err != nil {
-		return err
-	}
-	return transport.Start()
+	return fn(srv, transportConf)
 }
 
-func listenQueryers(srv *server.Server, conf config.Config) error {
+func loadQueryers(srv *server.Server, conf config.Config) ([]server.QueryTransport, error) {
+	var out []server.QueryTransport
+
 	transports, err := conf.QueryTransports()
 	if err != nil {
-		return err
+		return nil, err
 	}
-	errs := make(chan error, len(transports))
 	for _, name := range transports {
 		fn, ok := server.GetQueryTransport(name)
 		if !ok {
-			return fmt.Errorf("unsupported query transport: %s", name)
+			return nil, fmt.Errorf("unsupported query transport: %s", name)
 		}
 		transportConf, err := conf.QueryTransportConfig(name)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		transport, err := fn(srv, transportConf)
 		if err != nil {
-			return err
+			return nil, err
 		}
-		go func() {
-			errs <- transport.Start()
-		}()
+
+		out = append(out, transport)
 	}
-	for i := 0; i < len(transports); i++ {
-		err := <-errs
-		if err == nil {
-			continue
-		}
-		return err
-	}
-	return nil
+	return out, nil
 }
 
 func main() {
@@ -101,13 +90,13 @@ func main() {
 	}
 
 	srv := &server.Server{Storage: storage}
-	go func() {
-		if err := listenStorage(srv, conf); err != nil {
-			log.Fatalln("Error running storage transport:", err)
-		}
-	}()
-
-	if err := listenQueryers(srv, conf); err != nil {
-		log.Fatalln("Error running query transport:", err)
+	srv.StorageTransport, err = loadStorageTransport(srv, conf)
+	if err != nil {
+		log.Fatal(err)
 	}
+	srv.QueryTransports, err = loadQueryers(srv, conf)
+	if err != nil {
+		log.Fatal(err)
+	}
+	srv.Start()
 }
