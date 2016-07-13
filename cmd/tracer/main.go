@@ -2,6 +2,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"log"
 	"os"
@@ -73,8 +74,16 @@ func loadQueryers(srv *server.Server, conf config.Config) ([]server.QueryTranspo
 	return out, nil
 }
 
+var fConfig string
+
+func init() {
+	flag.StringVar(&fConfig, "c", "", "Path to config `file`")
+}
+
 func main() {
-	f, err := os.Open("example.conf")
+	flag.Parse()
+
+	f, err := os.Open(fConfig)
 	if err != nil {
 		log.Fatalln("Couldn't load config:", err)
 	}
