@@ -94,7 +94,7 @@ type RawRelation struct {
 type Span struct {
 	mu     sync.RWMutex
 	tracer *Tracer
-	RawSpan
+	raw    RawSpan
 }
 
 // A RawSpan contains all the data associated with a span.
@@ -109,6 +109,25 @@ type RawSpan struct {
 	Logs []opentracing.LogData  `json:"logs"`
 }
 
+// RawSpan returns a deep copy of the span's underlying data.
+func (sp *Span) RawSpan() RawSpan {
+	sp.mu.Lock()
+	defer sp.mu.Unlock()
+	raw := sp.raw
+	tags := raw.Tags
+	raw.Tags = map[string]interface{}{}
+	for k, v := range tags {
+		raw.Tags[k] = v
+	}
+	raw.Logs = append([]opentracing.LogData(nil), raw.Logs...)
+	baggage := raw.Baggage
+	raw.Baggage = map[string]string{}
+	for k, v := range baggage {
+		raw.Baggage[k] = v
+	}
+	return raw
+}
+
 // Sampled reports whether this span was sampled.
 func (sp *Span) Sampled() bool {
 	sp.mu.RLock()
@@ -117,14 +136,14 @@ func (sp *Span) Sampled() bool {
 }
 
 func (sp *Span) sampled() bool {
-	return (sp.Flags & FlagSampled) > 0
+	return (sp.raw.Flags & FlagSampled) > 0
 }
 
 // SetOperationName implements the opentracing.Span interface.
 func (sp *Span) SetOperationName(name string) opentracing.Span {
 	sp.mu.Lock()
 	defer sp.mu.Unlock()
-	sp.OperationName = name
+	sp.raw.OperationName = name
 	return sp
 }
 
@@ -139,10 +158,10 @@ func (sp *Span) SetTag(key string, value interface{}) opentracing.Span {
 		sp.tracer.Logger.Printf("unsupported tag value type for tag %q: %T", key, value)
 		return sp
 	}
-	if sp.Tags == nil {
-		sp.Tags = map[string]interface{}{}
+	if sp.raw.Tags == nil {
+		sp.raw.Tags = map[string]interface{}{}
 	}
-	sp.Tags[key] = value
+	sp.raw.Tags[key] = value
 	return sp
 }
 
@@ -164,11 +183,11 @@ func (sp *Span) FinishWithOptions(opts opentracing.FinishOptions) {
 	if opts.FinishTime.IsZero() {
 		opts.FinishTime = time.Now()
 	}
-	sp.FinishTime = opts.FinishTime
+	sp.raw.FinishTime = opts.FinishTime
 	for _, log := range opts.BulkLogData {
 		sp.log(log)
 	}
-	if err := sp.tracer.storer.Store(sp.RawSpan); err != nil {
+	if err := sp.tracer.storer.Store(sp.raw); err != nil {
 		sp.tracer.Logger.Printf("error while storing tracing span: %s", err)
 	}
 }
@@ -212,14 +231,14 @@ func (sp *Span) log(data opentracing.LogData) {
 	if data.Timestamp.IsZero() {
 		data.Timestamp = time.Now()
 	}
-	sp.Logs = append(sp.Logs, data)
+	sp.raw.Logs = append(sp.raw.Logs, data)
 }
 
 // Context implements the opentracing.Span interface.
 func (sp *Span) Context() opentracing.SpanContext {
 	sp.mu.RLock()
 	defer sp.mu.RUnlock()
-	return sp.SpanContext
+	return sp.raw.SpanContext
 }
 
 // Tracer implements the opentracing.Span interface.
@@ -263,7 +282,7 @@ func (tr *Tracer) StartSpan(operationName string, opts ...opentracing.StartSpanO
 	id := tr.idGenerator.GenerateID()
 	sp := &Span{
 		tracer: tr,
-		RawSpan: RawSpan{
+		raw: RawSpan{
 			SpanContext: SpanContext{
 				SpanID:  id,
 				TraceID: id,
@@ -280,17 +299,17 @@ func (tr *Tracer) StartSpan(operationName string, opts ...opentracing.StartSpanO
 		if !ok {
 			panic("parent span must be of type *Span")
 		}
-		sp.ParentID = parent.SpanID
-		sp.TraceID = parent.TraceID
-		sp.Flags = parent.Flags
+		sp.raw.ParentID = parent.SpanID
+		sp.raw.TraceID = parent.TraceID
+		sp.raw.Flags = parent.Flags
 	} else {
 		if n, _ := sopts.Tags[string(ext.SamplingPriority)].(uint16); n > 0 {
-			sp.Flags |= FlagSampled
+			sp.raw.Flags |= FlagSampled
 		} else if tr.Sampler.Sample(id) {
-			sp.Flags |= FlagSampled
+			sp.raw.Flags |= FlagSampled
 		}
 	}
-	sp.Tags = sopts.Tags
+	sp.raw.Tags = sopts.Tags
 	return sp
 }
 

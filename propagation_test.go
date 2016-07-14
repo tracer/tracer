@@ -9,7 +9,7 @@ import (
 
 func TestText(t *testing.T) {
 	sp := &Span{
-		RawSpan: RawSpan{
+		raw: RawSpan{
 			SpanContext: SpanContext{
 				SpanID:   1,
 				ParentID: 2,
@@ -31,18 +31,23 @@ func TestText(t *testing.T) {
 	if err != nil {
 		t.Fatal("unexpected error: ", err)
 	}
-	if context.TraceID != sp.TraceID || context.ParentID != sp.ParentID || context.SpanID != sp.SpanID || context.Flags != sp.Flags ||
-		len(context.Baggage) != 2 || context.Baggage["k1"] != "v1" || context.Baggage["k2"] != "" {
+	if context.TraceID != sp.raw.TraceID ||
+		context.ParentID != sp.raw.ParentID ||
+		context.SpanID != sp.raw.SpanID ||
+		context.Flags != sp.raw.Flags ||
+		len(context.Baggage) != 2 ||
+		context.Baggage["k1"] != "v1" ||
+		context.Baggage["k2"] != "" {
 
 		t.Errorf("got (%d, %d, %d, %d, %v), want (%d, %d, %d, %d, %v)",
 			context.TraceID, context.ParentID, context.SpanID, context.Flags, context.Baggage,
-			sp.TraceID, sp.ParentID, sp.SpanID, sp.Flags, sp.Baggage)
+			sp.raw.TraceID, sp.raw.ParentID, sp.raw.SpanID, sp.raw.Flags, sp.raw.Baggage)
 	}
 }
 
 func TestBinary(t *testing.T) {
 	sp := &Span{
-		RawSpan: RawSpan{
+		raw: RawSpan{
 			SpanContext: SpanContext{
 				SpanID:   1,
 				ParentID: 2,
@@ -63,11 +68,16 @@ func TestBinary(t *testing.T) {
 	if err != nil {
 		t.Fatal("unexpected error: ", err)
 	}
-	if context.TraceID != sp.TraceID || context.ParentID != sp.ParentID || context.SpanID != sp.SpanID || context.Flags != sp.Flags ||
-		len(context.Baggage) != 2 || context.Baggage["k1"] != "v1" || context.Baggage["k2"] != "" {
+	if context.TraceID != sp.raw.TraceID ||
+		context.ParentID != sp.raw.ParentID ||
+		context.SpanID != sp.raw.SpanID ||
+		context.Flags != sp.raw.Flags ||
+		len(context.Baggage) != 2 ||
+		context.Baggage["k1"] != "v1" ||
+		context.Baggage["k2"] != "" {
 
 		t.Errorf("got (%d, %d, %d, %d, %v), want (%d, %d, %d, %d, %v)",
 			context.TraceID, context.ParentID, context.SpanID, context.Flags, context.Baggage,
-			sp.TraceID, sp.ParentID, sp.SpanID, sp.Flags, sp.Baggage)
+			sp.raw.TraceID, sp.raw.ParentID, sp.raw.SpanID, sp.raw.Flags, sp.raw.Baggage)
 	}
 }
