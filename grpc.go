@@ -2,11 +2,13 @@ package tracer
 
 import (
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/tracer/tracer/pb"
 
 	"github.com/golang/protobuf/ptypes"
+	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 )
@@ -17,6 +19,9 @@ type GRPC struct {
 	queue         []RawSpan
 	ch            chan RawSpan
 	flushInterval time.Duration
+
+	stored  prometheus.Counter
+	dropped prometheus.Counter
 }
 
 // GRPCOptions are options for the GRPC storer.
@@ -45,6 +50,23 @@ func NewGRPC(address string, grpcOpts *GRPCOptions, opts ...grpc.DialOption) (St
 		queue:         make([]RawSpan, 0, grpcOpts.QueueSize),
 		ch:            make(chan RawSpan, grpcOpts.QueueSize*2),
 		flushInterval: grpcOpts.FlushInterval,
+
+		stored: prometheus.NewCounter(prometheus.CounterOpts{
+			Name: "tracer_stored_spans_total",
+			Help: "Number of stored spans",
+		}),
+		dropped: prometheus.NewCounter(prometheus.CounterOpts{
+			Name: "tracer_dropped_spans_total",
+			Help: "Number of dropped spans",
+		}),
+	}
+	err = prometheus.Register(g.dropped)
+	if err != nil {
+		log.Println("couldn't register prometheus counter:", err)
+	}
+	err = prometheus.Register(g.stored)
+	if err != nil {
+		log.Println("couldn't register prometheus counter:", err)
 	}
 	go g.loop()
 	return g, nil
@@ -57,6 +79,7 @@ func (g *GRPC) loop() {
 		case sp := <-g.ch:
 			g.queue = append(g.queue, sp)
 			if len(g.queue) == cap(g.queue) {
+				log.Println("flushing")
 				g.flush()
 			}
 		case <-t.C:
@@ -119,7 +142,9 @@ func (g *GRPC) flush() {
 func (g *GRPC) Store(sp RawSpan) error {
 	select {
 	case g.ch <- sp:
+		g.stored.Inc()
 	default:
+		g.dropped.Inc()
 	}
 	return nil
 }
