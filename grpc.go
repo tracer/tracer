@@ -79,7 +79,6 @@ func (g *GRPC) loop() {
 		case sp := <-g.ch:
 			g.queue = append(g.queue, sp)
 			if len(g.queue) == cap(g.queue) {
-				log.Println("flushing")
 				g.flush()
 			}
 		case <-t.C:
