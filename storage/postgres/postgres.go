@@ -227,7 +227,6 @@ WHERE spans.trace_id = $1;
 }
 
 func scanSpans(rows *sql.Rows) ([]tracer.RawSpan, error) {
-	// TODO select parents
 	var spans []tracer.RawSpan
 	var (
 		prevSpanID int64
