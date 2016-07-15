@@ -466,7 +466,7 @@ func (st *Storage) Services() ([]string, error) {
 }
 
 // Spans implements the server.Storage interface.
-func (st *Storage) Spans(service string) ([]string, error) {
+func (st *Storage) Operations(service string) ([]string, error) {
 	const query = `SELECT DISTINCT operation_name FROM spans WHERE service_name = $1 ORDER BY operation_name ASC`
 	rows, err := st.db.Query(query, service)
 	if err != nil {

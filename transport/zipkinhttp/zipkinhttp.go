@@ -62,7 +62,7 @@ func (h *HTTP) Services(w http.ResponseWriter, r *http.Request) {
 
 func (h *HTTP) Spans(w http.ResponseWriter, r *http.Request) {
 	service := r.URL.Query().Get("serviceName")
-	spans, err := h.srv.Storage.Spans(service)
+	spans, err := h.srv.Storage.Operations(service)
 	if err != nil {
 		http.Error(w, err.Error(), 500)
 		return

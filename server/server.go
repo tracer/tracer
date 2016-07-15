@@ -90,9 +90,8 @@ type Queryer interface {
 
 	// Services returns a list of all services.
 	Services() ([]string, error)
-	// TODO(dh): The current Spans function only really exists because
-	// of the zipkin UI. We might want a QuerySpans instead.
-	Spans(service string) ([]string, error)
+	// Operations returns a list of all operations.
+	Operations(service string) ([]string, error)
 	// Dependencies returns the dependencies between services.
 	Dependencies() ([]Dependency, error)
 }

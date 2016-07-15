@@ -36,7 +36,7 @@ func (Null) QueryTraces(q server.Query) ([]tracer.RawTrace, error) { return nil,
 func (Null) Services() ([]string, error) { return nil, nil }
 
 // Spans implements the server.Storage interface.
-func (Null) Spans(service string) ([]string, error) { return nil, nil }
+func (Null) Operations(service string) ([]string, error) { return nil, nil }
 
 // Dependencies implements the server.Storage interface.
 func (Null) Dependencies() ([]server.Dependency, error) { return nil, nil }
