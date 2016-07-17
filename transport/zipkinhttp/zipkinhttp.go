@@ -137,13 +137,6 @@ func traceToZipkin(trace tracer.RawTrace) zipkinTrace {
 					Timestamp: int(span.StartTime.UnixNano()) / 1000,
 					Value:     kind,
 				},
-				{
-					Endpoint: zipkinEndpoint{
-						ServiceName: span.ServiceName,
-					},
-					Timestamp: int(span.FinishTime.UnixNano()) / 1000,
-					Value:     opKind,
-				},
 			},
 			BinaryAnnotations: []zipkinBinaryAnnotation{},
 			Debug:             false,
@@ -164,6 +157,24 @@ func traceToZipkin(trace tracer.RawTrace) zipkinTrace {
 				Value: vs,
 			})
 		}
+		for _, log := range span.Logs {
+			zspan.Annotations = append(zspan.Annotations,
+				zipkinAnnotation{
+					Endpoint: zipkinEndpoint{
+						ServiceName: span.ServiceName,
+					},
+					Timestamp: int(log.Timestamp.UnixNano()) / 1000,
+					Value:     log.Event,
+				})
+		}
+		zspan.Annotations = append(zspan.Annotations,
+			zipkinAnnotation{
+				Endpoint: zipkinEndpoint{
+					ServiceName: span.ServiceName,
+				},
+				Timestamp: int(span.FinishTime.UnixNano()) / 1000,
+				Value:     opKind,
+			})
 		sort.Sort(zipkinBinaryAnnotations(zspan.BinaryAnnotations))
 		ztrace = append(ztrace, zspan)
 	}
