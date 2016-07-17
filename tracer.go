@@ -344,7 +344,10 @@ func (tr *Tracer) Extract(format interface{}, carrier interface{}) (opentracing.
 		return nil, opentracing.ErrUnsupportedFormat
 	}
 	context, err := extracter(carrier)
-	return context, err
+	if err != nil {
+		return nil, err
+	}
+	return context, nil
 }
 
 // IDGenerator generates IDs for traces and spans. The ID with value 0
