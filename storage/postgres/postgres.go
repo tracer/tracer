@@ -331,7 +331,7 @@ func (st *Storage) QueryTraces(q server.Query) ([]tracer.RawTrace, error) {
 		q.FinishTime = time.Now()
 	}
 	if q.MaxDuration == 0 {
-		q.MaxDuration = 1<<31 - 1
+		q.MaxDuration = 1<<63 - 1
 	}
 	if q.Num == 0 {
 		q.Num = 1<<31 - 1
