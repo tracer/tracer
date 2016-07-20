@@ -79,24 +79,30 @@ func (g *GRPC) loop() {
 		case sp := <-g.ch:
 			g.queue = append(g.queue, sp)
 			if len(g.queue) == cap(g.queue) {
-				g.flush()
+				if err := g.flush(); err != nil {
+					log.Println("couldn't flush spans:", err)
+				}
 			}
 		case <-t.C:
-			g.flush()
+			if err := g.flush(); err != nil {
+				log.Println("couldn't flush spans:", err)
+			}
 		}
 	}
 }
 
-func (g *GRPC) flush() {
+func (g *GRPC) flush() error {
 	var pbs []*pb.Span
 	for _, sp := range g.queue {
 		pst, err := ptypes.TimestampProto(sp.StartTime)
 		if err != nil {
-			return // XXX
+			log.Println("dropping span because of error:", err)
+			continue
 		}
 		pft, err := ptypes.TimestampProto(sp.FinishTime)
 		if err != nil {
-			return // XXX
+			log.Println("dropping span because of error:", err)
+			continue
 		}
 		var tags []*pb.Tag
 		for k, v := range sp.Tags {
@@ -106,14 +112,15 @@ func (g *GRPC) flush() {
 				Value: vs,
 			})
 		}
-		for _, log := range sp.Logs {
-			t, err := ptypes.TimestampProto(log.Timestamp)
+		for _, l := range sp.Logs {
+			t, err := ptypes.TimestampProto(l.Timestamp)
 			if err != nil {
-				return // XXX
+				log.Println("dropping log entry because of error:", err)
+				continue
 			}
-			ps := fmt.Sprintf("%v", log.Payload) // XXX
+			ps := fmt.Sprintf("%v", l.Payload) // XXX
 			tags = append(tags, &pb.Tag{
-				Key:   log.Event,
+				Key:   l.Event,
 				Value: ps,
 				Time:  t,
 			})
@@ -131,10 +138,11 @@ func (g *GRPC) flush() {
 		}
 		pbs = append(pbs, psp)
 	}
-	if _, err := g.client.Store(context.Background(), &pb.StoreRequest{Spans: pbs}); err != nil {
-		return // XXX
-	}
 	g.queue = g.queue[0:0]
+	if _, err := g.client.Store(context.Background(), &pb.StoreRequest{Spans: pbs}); err != nil {
+		return err
+	}
+	return nil
 }
 
 // Store implements the tracer.Storer interface.
