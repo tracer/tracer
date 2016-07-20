@@ -2,7 +2,6 @@ package tracer
 
 import (
 	"fmt"
-	"log"
 	"time"
 
 	"github.com/tracer/tracer/pb"
@@ -19,6 +18,7 @@ type GRPC struct {
 	queue         []RawSpan
 	ch            chan RawSpan
 	flushInterval time.Duration
+	logger        Logger
 
 	stored  prometheus.Counter
 	dropped prometheus.Counter
@@ -33,12 +33,20 @@ type GRPCOptions struct {
 	QueueSize int
 	// How often to flush spans, even if the queue isn't full yet.
 	FlushInterval time.Duration
+	// Where to log errors. If nil, the default logger will be used.
+	Logger Logger
 }
 
 // NewGRPC returns a new Storer that sends spans via gRPC to a server.
 func NewGRPC(address string, grpcOpts *GRPCOptions, opts ...grpc.DialOption) (Storer, error) {
 	if grpcOpts == nil {
-		grpcOpts = &GRPCOptions{1024, 1 * time.Second}
+		grpcOpts = &GRPCOptions{
+			QueueSize:     1024,
+			FlushInterval: 1 * time.Second,
+		}
+	}
+	if grpcOpts.Logger == nil {
+		grpcOpts.Logger = defaultLogger{}
 	}
 	conn, err := grpc.Dial(address, opts...)
 	if err != nil {
@@ -62,11 +70,11 @@ func NewGRPC(address string, grpcOpts *GRPCOptions, opts ...grpc.DialOption) (St
 	}
 	err = prometheus.Register(g.dropped)
 	if err != nil {
-		log.Println("couldn't register prometheus counter:", err)
+		g.logger.Printf("couldn't register prometheus counter: %s", err)
 	}
 	err = prometheus.Register(g.stored)
 	if err != nil {
-		log.Println("couldn't register prometheus counter:", err)
+		g.logger.Printf("couldn't register prometheus counter: %s", err)
 	}
 	go g.loop()
 	return g, nil
@@ -80,12 +88,12 @@ func (g *GRPC) loop() {
 			g.queue = append(g.queue, sp)
 			if len(g.queue) == cap(g.queue) {
 				if err := g.flush(); err != nil {
-					log.Println("couldn't flush spans:", err)
+					g.logger.Printf("couldn't flush spans: %s", err)
 				}
 			}
 		case <-t.C:
 			if err := g.flush(); err != nil {
-				log.Println("couldn't flush spans:", err)
+				g.logger.Printf("couldn't flush spans: %s", err)
 			}
 		}
 	}
@@ -96,12 +104,12 @@ func (g *GRPC) flush() error {
 	for _, sp := range g.queue {
 		pst, err := ptypes.TimestampProto(sp.StartTime)
 		if err != nil {
-			log.Println("dropping span because of error:", err)
+			g.logger.Printf("dropping span because of error: %s", err)
 			continue
 		}
 		pft, err := ptypes.TimestampProto(sp.FinishTime)
 		if err != nil {
-			log.Println("dropping span because of error:", err)
+			g.logger.Printf("dropping span because of error: %s", err)
 			continue
 		}
 		var tags []*pb.Tag
@@ -115,7 +123,7 @@ func (g *GRPC) flush() error {
 		for _, l := range sp.Logs {
 			t, err := ptypes.TimestampProto(l.Timestamp)
 			if err != nil {
-				log.Println("dropping log entry because of error:", err)
+				g.logger.Printf("dropping log entry because of error: %s", err)
 				continue
 			}
 			ps := fmt.Sprintf("%v", l.Payload) // XXX
