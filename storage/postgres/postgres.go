@@ -182,7 +182,8 @@ FROM spans
 WHERE spans.trace_id = $1
 ORDER BY
   spans.time ASC,
-  spans.id`
+  spans.id,
+  tags.time ASC`
 	const selectRelations = `
 SELECT r.span1_id, r.span2_id, r.kind
 FROM relations AS r
