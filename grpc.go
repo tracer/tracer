@@ -58,6 +58,7 @@ func NewGRPC(address string, grpcOpts *GRPCOptions, opts ...grpc.DialOption) (St
 		queue:         make([]RawSpan, 0, grpcOpts.QueueSize),
 		ch:            make(chan RawSpan, grpcOpts.QueueSize*2),
 		flushInterval: grpcOpts.FlushInterval,
+		logger:        grpcOpts.Logger,
 
 		stored: prometheus.NewCounter(prometheus.CounterOpts{
 			Name: "tracer_stored_spans_total",
