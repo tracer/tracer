@@ -295,7 +295,7 @@ func (tr *Tracer) StartSpan(operationName string, opts ...opentracing.StartSpanO
 	if len(sopts.References) > 0 {
 		// TODO(dh): support multiple parents, support ChildOf and
 		// FollowsFrom as separate kinds of relations.
-		parent, ok := sopts.References[0].Referee.(SpanContext)
+		parent, ok := sopts.References[0].ReferencedContext.(SpanContext)
 		if !ok {
 			panic("parent span must be of type *Span")
 		}
