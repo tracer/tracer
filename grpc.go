@@ -67,6 +67,7 @@ func NewGRPC(address string, grpcOpts *GRPCOptions, opts ...grpc.DialOption) (St
 			Name: "tracer_dropped_spans_total",
 			Help: "Number of dropped spans",
 		}),
+		logger: grpcOpts.Logger,
 	}
 	err = prometheus.Register(g.dropped)
 	if err != nil {
