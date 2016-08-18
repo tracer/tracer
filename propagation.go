@@ -45,17 +45,6 @@ type SpanContext struct {
 	Baggage  map[string]string `json:"baggage"`
 }
 
-// SetBaggageItem implements the opentracing.Tracer interface.
-func (c SpanContext) SetBaggageItem(key, value string) opentracing.SpanContext {
-	c.Baggage[key] = value
-	return c
-}
-
-// BaggageItem implements the opentracing.Tracer interface.
-func (c SpanContext) BaggageItem(key string) string {
-	return c.Baggage[key]
-}
-
 // ForeachBaggageItem implements the opentracing.Tracer interface.
 func (c SpanContext) ForeachBaggageItem(handler func(k, v string) bool) {
 	for k, v := range c.Baggage {

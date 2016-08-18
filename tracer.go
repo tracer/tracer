@@ -165,6 +165,17 @@ func (sp *Span) SetTag(key string, value interface{}) opentracing.Span {
 	return sp
 }
 
+// SetBaggageItem implements the opentracing.Tracer interface.
+func (sp *Span) SetBaggageItem(key, value string) opentracing.Span {
+	sp.raw.SpanContext.Baggage[key] = value
+	return sp
+}
+
+// BaggageItem implements the opentracing.Tracer interface.
+func (sp *Span) BaggageItem(key string) string {
+	return sp.raw.SpanContext.Baggage[key]
+}
+
 // Finish implements the opentracing.Span interface.
 func (sp *Span) Finish() {
 	if !sp.Sampled() {
