@@ -324,6 +324,14 @@ func (tr *Tracer) StartSpan(operationName string, opts ...opentracing.StartSpanO
 	return sp
 }
 
+func (tr *Tracer) Flush() error {
+	f, ok := tr.storer.(Flusher)
+	if !ok {
+		return nil
+	}
+	return f.Flush()
+}
+
 func idToHex(id uint64) string {
 	b := make([]byte, 8)
 	binary.BigEndian.PutUint64(b, id)
@@ -378,6 +386,12 @@ type IDGenerator interface {
 // stored before their parents.
 type Storer interface {
 	Store(sp RawSpan) error
+}
+
+// Flusher is an optional interface that when implemented allows a
+// Storer to flush buffered spawns.
+type Flusher interface {
+	Flush() error
 }
 
 var _ IDGenerator = RandomID{}

@@ -17,6 +17,7 @@ type GRPC struct {
 	client        pb.StorerClient
 	queue         []RawSpan
 	ch            chan RawSpan
+	flushCh       chan chan error
 	flushInterval time.Duration
 	logger        Logger
 
@@ -57,6 +58,7 @@ func NewGRPC(address string, grpcOpts *GRPCOptions, opts ...grpc.DialOption) (St
 		client:        client,
 		queue:         make([]RawSpan, 0, grpcOpts.QueueSize),
 		ch:            make(chan RawSpan, grpcOpts.QueueSize*2),
+		flushCh:       make(chan chan error),
 		flushInterval: grpcOpts.FlushInterval,
 		logger:        grpcOpts.Logger,
 
@@ -96,6 +98,8 @@ func (g *GRPC) loop() {
 			if err := g.flush(); err != nil {
 				g.logger.Printf("couldn't flush spans: %s", err)
 			}
+		case ch := <-g.flushCh:
+			ch <- g.flush()
 		}
 	}
 }
@@ -166,4 +170,10 @@ func (g *GRPC) Store(sp RawSpan) error {
 		g.dropped.Inc()
 	}
 	return nil
+}
+
+func (g *GRPC) Flush() error {
+	ch := make(chan error)
+	g.flushCh <- ch
+	return <-ch
 }
