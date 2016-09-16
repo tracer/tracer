@@ -59,12 +59,12 @@ func textInjecter(sm SpanContext, carrier interface{}) error {
 	if !ok {
 		return opentracing.ErrInvalidCarrier
 	}
-	w.Set("Tracer-TraceId", idToHex(sm.TraceID))
-	w.Set("Tracer-SpanId", idToHex(sm.SpanID))
-	w.Set("Tracer-ParentSpanId", idToHex(sm.ParentID))
-	w.Set("Tracer-Flags", strconv.FormatUint(sm.Flags, 10))
+	w.Set("tracer-traceid", idToHex(sm.TraceID))
+	w.Set("tracer-spanid", idToHex(sm.SpanID))
+	w.Set("tracer-parentspanid", idToHex(sm.ParentID))
+	w.Set("tracer-flags", strconv.FormatUint(sm.Flags, 10))
 	for k, v := range sm.Baggage {
-		w.Set("Tracer-Baggage-"+k, v)
+		w.Set("tracer-baggage-"+k, v)
 	}
 	return nil
 }
