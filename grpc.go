@@ -101,6 +101,9 @@ func (g *GRPC) loop() {
 }
 
 func (g *GRPC) flush() error {
+	if len(g.queue) == 0 {
+		return nil
+	}
 	var pbs []*pb.Span
 	for _, sp := range g.queue {
 		pst, err := ptypes.TimestampProto(sp.StartTime)
