@@ -16,13 +16,15 @@ type Extracter func(carrier interface{}) (SpanContext, error)
 type Injecter func(sm SpanContext, carrier interface{}) error
 
 var extracters = map[interface{}]Extracter{
-	opentracing.TextMap: textExtracter,
-	opentracing.Binary:  binaryExtracter,
+	opentracing.HTTPHeaders: textExtracter,
+	opentracing.TextMap:     textExtracter,
+	opentracing.Binary:      binaryExtracter,
 }
 
 var injecters = map[interface{}]Injecter{
-	opentracing.TextMap: textInjecter,
-	opentracing.Binary:  binaryInjecter,
+	opentracing.HTTPHeaders: textInjecter,
+	opentracing.TextMap:     textInjecter,
+	opentracing.Binary:      binaryInjecter,
 }
 
 // RegisterExtracter registers an Extracter.
