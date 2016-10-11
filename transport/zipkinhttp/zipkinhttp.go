@@ -215,7 +215,7 @@ func (h *HTTP) Traces(w http.ResponseWriter, r *http.Request) {
 		AndTags:       nil,
 		OrTags:        nil,
 		Num:           limit,
-		ServiceNames: svcNames,
+		ServiceNames:  svcNames,
 	})
 	if err != nil {
 		http.Error(w, err.Error(), 500)
