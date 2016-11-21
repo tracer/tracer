@@ -5,7 +5,7 @@ import (
 	"log"
 	"time"
 
-	"github.com/tracer/tracer"
+	"github.com/lygo/tracer"
 
 	_ "github.com/lib/pq"
 	"github.com/opentracing/opentracing-go"

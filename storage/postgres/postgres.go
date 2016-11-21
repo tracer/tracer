@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/tracer/tracer"
-	"github.com/tracer/tracer/server"
+	"github.com/lygo/tracer"
+	"github.com/lygo/tracer/server"
 
 	"github.com/jmoiron/sqlx"
 	_ "github.com/lib/pq" // load the postgres driver

@@ -24,21 +24,21 @@ The following software is required:
 ### Installation
 
 ```
-go get github.com/tracer/tracer/cmd/tracer
+go get github.com/lygo/tracer/cmd/tracer
 go get github.com/tracer/tracer-ui/cmd/tracer-ui
 ```
 
 ### Configuration
 
 Create a PostgreSQL user and schema for Tracer and import the file
-`$GOPATH/src/github.com/tracer/tracer/storage/postgres/schema.sql`.
+`$GOPATH/src/github.com/lygo/tracer/storage/postgres/schema.sql`.
 The example configuration uses the username and password `tracer` and
 the database `postgres`, but you're free to edit the config.
 
 Now you can start Tracer and its UI:
 
 ```
-cp $GOPATH/src/github.com/tracer/tracer/cmd/tracer/example.conf .
+cp $GOPATH/src/github.com/lygo/tracer/cmd/tracer/example.conf .
 # possibly edit example.conf
 $GOPATH/bin/tracer -c example.conf &
 $GOPATH/bin/tracer-ui -t $GOPATH/src/github.com/tracer/tracer-ui/zipkin-ui &
@@ -47,7 +47,7 @@ $GOPATH/bin/tracer-ui -t $GOPATH/src/github.com/tracer/tracer-ui/zipkin-ui &
 To insert a basic demo trace, run
 
 ```
-go run $GOPATH/src/github.com/tracer/tracer/cmd/demo/demo.go
+go run $GOPATH/src/github.com/lygo/tracer/cmd/demo/demo.go
 ```
 
 To view the UI, point your browser at http://localhost:9997/.
@@ -59,7 +59,7 @@ for the API. To instantiate a Tracer instance that logs to the server
 you just started, write something like this:
 
 ```
-import "github.com/tracer/tracer"
+import "github.com/lygo/tracer"
 
 ...
 
@@ -76,4 +76,4 @@ t := tracer.NewTracer("frontend", storage, tracer.RandomID{})
 This will create a tracer `t` that sends traces via gRPC to your server.
 
 For more information on Tracer's instrumentation API check
-[godoc.org](https://godoc.org/github.com/tracer/tracer).
+[godoc.org](https://godoc.org/github.com/lygo/tracer).

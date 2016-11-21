@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/tracer/tracer"
+	"github.com/lygo/tracer"
 )
 
 type spanResponse struct {

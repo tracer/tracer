@@ -3,8 +3,8 @@
 package null
 
 import (
-	"github.com/tracer/tracer"
-	"github.com/tracer/tracer/server"
+	"github.com/lygo/tracer"
+	"github.com/lygo/tracer/server"
 )
 
 func init() {

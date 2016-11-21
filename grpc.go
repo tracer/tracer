@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/tracer/tracer/pb"
+	"github.com/lygo/tracer/pb"
 
 	"github.com/golang/protobuf/ptypes"
 	"github.com/prometheus/client_golang/prometheus"
