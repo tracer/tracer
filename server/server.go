@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/tracer/tracer"
+	"github.com/lygo/tracer"
 )
 
 // A StorageTransportEngine returns an instance of a storage transport.

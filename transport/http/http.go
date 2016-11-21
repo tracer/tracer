@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/tracer/tracer/server"
+	"github.com/lygo/tracer/server"
 )
 
 func init() {

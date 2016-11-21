@@ -5,10 +5,10 @@ import (
 	"errors"
 	"net"
 
-	"github.com/tracer/tracer"
-	"github.com/tracer/tracer/internal/pbutil"
-	"github.com/tracer/tracer/pb"
-	"github.com/tracer/tracer/server"
+	"github.com/lygo/tracer"
+	"github.com/lygo/tracer/internal/pbutil"
+	"github.com/lygo/tracer/pb"
+	"github.com/lygo/tracer/server"
 
 	"github.com/opentracing/opentracing-go"
 	"golang.org/x/net/context"

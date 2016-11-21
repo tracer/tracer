@@ -7,13 +7,13 @@ import (
 	"log"
 	"os"
 
-	"github.com/tracer/tracer/cmd/tracer/config"
-	"github.com/tracer/tracer/server"
-	_ "github.com/tracer/tracer/storage/null"
-	_ "github.com/tracer/tracer/storage/postgres"
-	_ "github.com/tracer/tracer/transport/grpc"
-	_ "github.com/tracer/tracer/transport/http"
-	_ "github.com/tracer/tracer/transport/zipkinhttp"
+	"github.com/lygo/tracer/cmd/tracer/config"
+	"github.com/lygo/tracer/server"
+	_ "github.com/lygo/tracer/storage/null"
+	_ "github.com/lygo/tracer/storage/postgres"
+	_ "github.com/lygo/tracer/transport/grpc"
+	_ "github.com/lygo/tracer/transport/http"
+	_ "github.com/lygo/tracer/transport/zipkinhttp"
 )
 
 func loadStorage(conf config.Config) (server.Storage, error) {

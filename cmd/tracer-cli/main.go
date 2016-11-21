@@ -9,8 +9,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/tracer/tracer"
-	"github.com/tracer/tracer/client"
+	"github.com/lygo/tracer"
+	"github.com/lygo/tracer/client"
 )
 
 var fHost string
