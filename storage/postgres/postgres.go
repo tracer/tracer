@@ -369,9 +369,15 @@ func (st *Storage) QueryTraces(q server.Query) ([]tracer.RawTrace, error) {
 
 	var serviceConds []string
 	var serviceNames []interface{}
-	for _, name := range q.ServiceNames {
-		serviceNames = append(serviceNames, name)
-		serviceConds = append(serviceConds, "?")
+	var serviceQuery string
+
+	if len(q.ServiceNames) > 0 {
+		for _, name := range q.ServiceNames {
+			serviceNames = append(serviceNames, name)
+			serviceConds = append(serviceConds, "?")
+		}
+
+		serviceQuery = `EXISTS ( SELECT 1 FROM spans AS sub_spans WHERE sub_spans.trace_id = spans.trace_id AND sub_spans.service_name IN (` + strings.Join(serviceConds, ", ") + `)) AND`
 	}
 
 	var query string
@@ -385,7 +391,7 @@ WHERE
   (? = '' OR operation_name = ?) AND
   DURATION(time) >= ? AND
   DURATION(time) <= ? AND
-  EXISTS ( SELECT 1 FROM spans AS sub_spans WHERE sub_spans.trace_id = spans.trace_id AND sub_spans.service_name IN (` + strings.Join(serviceConds, ", ") + `)) AND
+  ` + serviceQuery + `
   spans.id = spans.trace_id
 ORDER BY
   spans.time DESC,
@@ -410,7 +416,7 @@ WHERE
   (? = '' OR operation_name = ?) AND
   DURATION(time) >= ? AND
   DURATION(time) <= ? AND
-  EXISTS ( SELECT 1 FROM spans AS sub_spans WHERE sub_spans.trace_id = spans.trace_id AND sub_spans.service_name IN (` + strings.Join(serviceConds, ", ") + `)) AND
+  ` + serviceQuery + `
   spans.id = spans.trace_id
 ORDER BY
   spans.time DESC,

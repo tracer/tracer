@@ -137,7 +137,7 @@ type Query struct {
 	OrTags []QueryTag
 	// How many traces to return. Zero means no limit.
 	Num int
-	// ServiceName to filter by.
+	// ServiceNames to filter by.
 	ServiceNames []string
 }
 
