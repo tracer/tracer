@@ -423,7 +423,6 @@ ORDER BY
   spans.trace_id
 LIMIT ?) AS sub
 ORDER BY sub.time ASC, sub.trace_id
-)
 `)
 	}
 	args := make([]interface{}, 0, len(andArgs)+len(orArgs))
