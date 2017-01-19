@@ -193,12 +193,18 @@ func (h *HTTP) Traces(w http.ResponseWriter, r *http.Request) {
 	}
 	minDuration := time.Duration(atoi(r.URL.Query().Get("minDuration"))) * time.Microsecond
 	maxDuration := time.Duration(atoi(r.URL.Query().Get("maxDuration"))) * time.Microsecond
+	serviceName := r.URL.Query().Get("serviceName")
 	msec := int64(atoi(r.URL.Query().Get("endTs")))
 	endTs := time.Unix(msec/1000, (msec%1000)*1000)
 	if msec == 0 {
 		endTs = time.Now()
 	}
 	lookback := time.Duration(atoi(r.URL.Query().Get("lookback"))) * time.Millisecond
+
+	var svcNames []string
+	if serviceName != "" {
+		svcNames = []string{serviceName}
+	}
 
 	traces, err := h.srv.Storage.QueryTraces(server.Query{
 		StartTime:     endTs.Add(-lookback),
@@ -209,6 +215,7 @@ func (h *HTTP) Traces(w http.ResponseWriter, r *http.Request) {
 		AndTags:       nil,
 		OrTags:        nil,
 		Num:           limit,
+		ServiceNames:  svcNames,
 	})
 	if err != nil {
 		http.Error(w, err.Error(), 500)

@@ -367,6 +367,19 @@ func (st *Storage) QueryTraces(q server.Query) ([]tracer.RawTrace, error) {
 		conds = append(conds, or)
 	}
 
+	var serviceConds []string
+	var serviceNames []interface{}
+	var serviceQuery string
+
+	if len(q.ServiceNames) > 0 {
+		for _, name := range q.ServiceNames {
+			serviceNames = append(serviceNames, name)
+			serviceConds = append(serviceConds, "?")
+		}
+
+		serviceQuery = `EXISTS ( SELECT 1 FROM spans AS sub_spans WHERE sub_spans.trace_id = spans.trace_id AND sub_spans.service_name IN (` + strings.Join(serviceConds, ", ") + `)) AND`
+	}
+
 	var query string
 	if len(conds) == 1 {
 		query = st.db.Rebind(`
@@ -378,6 +391,7 @@ WHERE
   (? = '' OR operation_name = ?) AND
   DURATION(time) >= ? AND
   DURATION(time) <= ? AND
+  ` + serviceQuery + `
   spans.id = spans.trace_id
 ORDER BY
   spans.time DESC,
@@ -402,13 +416,13 @@ WHERE
   (? = '' OR operation_name = ?) AND
   DURATION(time) >= ? AND
   DURATION(time) <= ? AND
+  ` + serviceQuery + `
   spans.id = spans.trace_id
 ORDER BY
   spans.time DESC,
   spans.trace_id
 LIMIT ?) AS sub
 ORDER BY sub.time ASC, sub.trace_id
-)
 `)
 	}
 	args := make([]interface{}, 0, len(andArgs)+len(orArgs))
@@ -417,6 +431,7 @@ ORDER BY sub.time ASC, sub.trace_id
 	args = append(args, timeRange{q.StartTime, q.FinishTime})
 	args = append(args, q.OperationName, q.OperationName)
 	args = append(args, int64(q.MinDuration), int64(q.MaxDuration))
+	args = append(args, serviceNames...)
 	args = append(args, q.Num)
 
 	var ids []int64

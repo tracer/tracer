@@ -137,6 +137,8 @@ type Query struct {
 	OrTags []QueryTag
 	// How many traces to return. Zero means no limit.
 	Num int
+	// ServiceNames to filter by.
+	ServiceNames []string
 }
 
 // Server is an instance of the Tracer application.
